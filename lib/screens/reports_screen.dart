@@ -65,25 +65,6 @@ class _ReportsScreenState extends State<ReportsScreen>
             onPressed: _importData,
             tooltip: 'Import CSV',
           ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'mock') {
-                _generateMockData();
-              } else if (value == 'clear') {
-                _deleteAllData();
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'mock',
-                child: Text('Generate Mock Data'),
-              ),
-              const PopupMenuItem(
-                value: 'clear',
-                child: Text('Clear All Data'),
-              ),
-            ],
-          ),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -754,56 +735,7 @@ class _ReportsScreenState extends State<ReportsScreen>
     }
   }
 
-  Future<void> _generateMockData() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Generate Mock Data?'),
-        content: const Text('This will add random sales data for the last 90 days. Useful for testing reports.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Generate'),
-          ),
-        ],
-      ),
-    );
 
-    if (confirmed == true && mounted) {
-      await context.read<SalesProvider>().generateMockData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: const Text('Mock data generated!'), backgroundColor: context.profitColor),
-        );
-      }
-    }
-  }
 
-  Future<void> _deleteAllData() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete All Data?'),
-        content: const Text('This will permanently delete all sales and shop data. This action cannot be undone.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: context.lossColor),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete All', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
 
-    if (confirmed == true && mounted) {
-      await context.read<SalesProvider>().deleteAllData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('All data deleted.')),
-        );
-      }
-    }
-  }
 }

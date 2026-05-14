@@ -73,6 +73,7 @@ class NumericTextField extends StatelessWidget {
   final bool allowDecimal;
   final String? suffix;
   final void Function(String)? onChanged;
+  final String? hint;
 
   const NumericTextField({
     super.key,
@@ -82,6 +83,7 @@ class NumericTextField extends StatelessWidget {
     this.allowDecimal = false,
     this.suffix,
     this.onChanged,
+    this.hint,
   });
 
   @override
@@ -99,6 +101,7 @@ class NumericTextField extends StatelessWidget {
       ],
       suffix: suffix,
       onChanged: onChanged,
+      hint: hint,
     );
   }
 }

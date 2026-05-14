@@ -47,3 +47,18 @@ const String currencySymbol = '₹';
 const String dbName = 'idly_express.db';
 const String salesTable = 'sales_entries';
 const String shopsTable = 'shops';
+
+// Payment Status
+enum PaymentStatus {
+  paid,
+  pending;
+
+  String get displayName {
+    switch (this) {
+      case PaymentStatus.paid:
+        return 'Paid';
+      case PaymentStatus.pending:
+        return 'Pending';
+    }
+  }
+}

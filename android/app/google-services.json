@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "654634597948",
+    "project_id": "sales-manager-idly-express",
+    "storage_bucket": "sales-manager-idly-express.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:654634597948:android:b62b4757a4086effe40d39",
+        "android_client_info": {
+          "package_name": "com.idlyexpress.salesmanager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDiJxo80qQwEN7YnZGIhmuHKvV4TIPQGN0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

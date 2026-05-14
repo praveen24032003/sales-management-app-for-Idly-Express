@@ -1,0 +1,30 @@
+Analyzing first_flutter_app...
+
+  error - lib\screens\add_entry_screen.dart:418:21 - The named parameter 'hint' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'hint'. - undefined_named_parameter
+  error - lib\screens\profit_screen.dart:67:61 - The getter 'yearTotalProfit' isn't defined for the type 'SalesProvider'. Try importing the library that defines 'yearTotalProfit', correcting the name to the name of an existing getter, or defining a getter or field named 'yearTotalProfit'. - undefined_getter
+  error - lib\screens\profit_screen.dart:69:44 - The getter 'yearTotalProfit' isn't defined for the type 'SalesProvider'. Try importing the library that defines 'yearTotalProfit', correcting the name to the name of an existing getter, or defining a getter or field named 'yearTotalProfit'. - undefined_getter
+  error - lib\screens\profit_screen.dart:163:30 - The getter 'yearTotalProfit' isn't defined for the type 'SalesProvider'. Try importing the library that defines 'yearTotalProfit', correcting the name to the name of an existing getter, or defining a getter or field named 'yearTotalProfit'. - undefined_getter
+warning - lib\screens\add_entry_screen.dart:40:16 - The value of the field '_shopSuggestions' isn't used. Try removing the field, or using it. - unused_field
+warning - lib\screens\add_entry_screen.dart:41:8 - The value of the field '_showSuggestions' isn't used. Try removing the field, or using it. - unused_field
+warning - lib\screens\add_entry_screen.dart:128:16 - The declaration '_fetchShopSuggestions' isn't referenced. Try removing the declaration of '_fetchShopSuggestions'. - unused_element
+warning - lib\screens\dashboard_screen.dart:11:8 - Duplicate import. Try removing all but one import of the library. - duplicate_import
+   info - lib\core\constants.dart:1:1 - Dangling library doc comment. Add a 'library' directive after the library comment. - dangling_library_doc_comments
+   info - lib\screens\add_entry_screen.dart:384:23 - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\add_entry_screen.dart:385:23 - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\add_entry_screen.dart:400:23 - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\add_entry_screen.dart:401:23 - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\dashboard_screen.dart:283:91 - Unnecessary braces in a string interpolation. Try removing the braces. - unnecessary_brace_in_string_interps
+   info - lib\screens\dashboard_screen.dart:360:26 - Missing type annotation. Try adding a type annotation. - strict_top_level_inference
+   info - lib\screens\expenses_screen.dart:75:78 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\expenses_screen.dart:93:41 - Unnecessary use of multiple underscores. Try using '_'. - unnecessary_underscores
+   info - lib\screens\expenses_screen.dart:98:53 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\reports_screen.dart:700:13 - 'Share' is deprecated and shouldn't be used. Use SharePlus instead. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\reports_screen.dart:700:19 - 'shareXFiles' is deprecated and shouldn't be used. Use SharePlus.instance.share() instead. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\reports_screen.dart:727:26 - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check. - use_build_context_synchronously
+   info - lib\screens\shop_balances_screen.dart:110:47 - Unnecessary use of multiple underscores. Try using '_'. - unnecessary_underscores
+   info - lib\screens\shop_balances_screen.dart:117:90 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\shop_balances_screen.dart:120:68 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\widgets\custom_dropdown.dart:35:11 - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\widgets\custom_dropdown.dart:77:11 - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+
+26 issues found.

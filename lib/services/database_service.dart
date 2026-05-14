@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../core/constants.dart';
 import '../models/sales_entry_model.dart';
+import '../models/expense_model.dart';
 
 /// Database service for offline-first data storage
 class DatabaseService {
@@ -22,9 +23,32 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 3,
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // For development simplicity, we'll drop and recreate for v1->v2
+      await db.execute('DROP TABLE IF EXISTS $salesTable');
+      await db.execute('DROP TABLE IF EXISTS $shopsTable');
+      await _createDB(db, newVersion);
+    }
+    
+    if (oldVersion < 3) {
+      // Add sync columns for v2->v3
+      // Sales Table
+      await db.execute('ALTER TABLE $salesTable ADD COLUMN firestore_id TEXT');
+      await db.execute('ALTER TABLE $salesTable ADD COLUMN last_modified INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE $salesTable ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0');
+      
+      // Expenses Table
+      await db.execute('ALTER TABLE expenses ADD COLUMN firestore_id TEXT');
+      await db.execute('ALTER TABLE expenses ADD COLUMN last_modified INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE expenses ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -42,7 +66,12 @@ class DatabaseService {
         totalSalesAmount REAL NOT NULL,
         totalCost REAL NOT NULL,
         profit REAL NOT NULL,
-        notes TEXT
+        paymentStatus INTEGER NOT NULL,
+        paidAmount REAL NOT NULL,
+        notes TEXT,
+        firestore_id TEXT,
+        last_modified INTEGER NOT NULL DEFAULT 0,
+        is_synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -52,6 +81,20 @@ class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE NOT NULL,
         lastUsed TEXT NOT NULL
+      )
+    ''');
+    
+    // Expenses table
+    await db.execute('''
+      CREATE TABLE expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        category INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        notes TEXT,
+        firestore_id TEXT,
+        last_modified INTEGER NOT NULL DEFAULT 0,
+        is_synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
@@ -233,6 +276,57 @@ class DatabaseService {
     return entries.fold<double>(0.0, (sum, entry) => sum + entry.profit);
   }
 
+  /// Get total pending amount for a shop
+  Future<double> getPendingAmountByShop(String shopName) async {
+    final entries = await getEntriesByShop(shopName);
+    return entries.fold<double>(0.0, (sum, entry) => sum + entry.pendingAmount);
+  }
+
+  /// Get all shops with pending amounts
+  Future<Map<String, double>> getAllPendingAmounts() async {
+    final entries = await getAllEntries();
+    final Map<String, double> pendingMap = {};
+    
+    for (final entry in entries) {
+      if (entry.pendingAmount > 0) {
+        pendingMap[entry.shopName] = (pendingMap[entry.shopName] ?? 0) + entry.pendingAmount;
+      }
+    }
+    return pendingMap;
+  }
+
+  // ==================== EXPENSES CRUD ====================
+
+  /// Insert expense
+  Future<int> insertExpense(Expense expense) async {
+    final db = await database;
+    return await db.insert('expenses', expense.toMap());
+  }
+
+  /// Delete expense
+  Future<int> deleteExpense(int id) async {
+    final db = await database;
+    return await db.delete('expenses', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Get expenses by date range
+  Future<List<Expense>> getExpensesByDateRange(DateTime start, DateTime end) async {
+    final db = await database;
+    final result = await db.query(
+      'expenses',
+      where: 'date >= ? AND date <= ?',
+      whereArgs: [start.toIso8601String(), end.toIso8601String()],
+      orderBy: 'date DESC',
+    );
+    return result.map((map) => Expense.fromMap(map)).toList();
+  }
+
+  /// Get total expenses for date range
+  Future<double> getTotalExpenses(DateTime start, DateTime end) async {
+    final expenses = await getExpensesByDateRange(start, end);
+    return expenses.fold<double>(0.0, (sum, e) => sum + e.amount);
+  }
+
   // ==================== CSV EXPORT/IMPORT ====================
 
   /// Export all entries to CSV string
@@ -275,7 +369,11 @@ class DatabaseService {
           ratePerUnit: double.parse(parts[4]),
           quantity: int.parse(parts[5]),
           costPerUnit: double.parse(parts[6]),
-          notes: parts.length > 10 ? parts[10] : null,
+          paymentStatus: parts.length > 10 
+              ? PaymentStatus.values.firstWhere((e) => e.displayName == parts[10], orElse: () => PaymentStatus.paid)
+              : PaymentStatus.paid,
+          paidAmount: parts.length > 11 ? double.tryParse(parts[11]) : null,
+          notes: parts.length > 13 ? parts[13] : (parts.length > 10 && parts.length < 13 ? parts[10] : null), // Handle old format notes
         );
 
         await insertSalesEntry(entry);
@@ -293,5 +391,40 @@ class DatabaseService {
     final db = await database;
     await db.delete(salesTable);
     await db.delete(shopsTable);
+    await db.delete('expenses');
+  }
+
+  // ==================== SYNC HELPERS ====================
+
+  Future<List<SalesEntry>> getUnsyncedSales() async {
+    final db = await database;
+    final result = await db.query(salesTable, where: 'is_synced = 0');
+    return result.map((map) => SalesEntry.fromMap(map)).toList();
+  }
+
+  Future<List<Expense>> getUnsyncedExpenses() async {
+    final db = await database;
+    final result = await db.query('expenses', where: 'is_synced = 0');
+    return result.map((map) => Expense.fromMap(map)).toList();
+  }
+
+  Future<void> markSaleAsSynced(int id, String firestoreId) async {
+    final db = await database;
+    await db.update(
+      salesTable,
+      {'is_synced': 1, 'firestore_id': firestoreId},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> markExpenseAsSynced(int id, String firestoreId) async {
+    final db = await database;
+    await db.update(
+      'expenses',
+      {'is_synced': 1, 'firestore_id': firestoreId},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }

@@ -31,6 +31,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   late TextEditingController _quantityController;
   late TextEditingController _costController;
   late TextEditingController _notesController;
+  
+  // Payment
+  late PaymentStatus _paymentStatus;
+  late TextEditingController _paidAmountController;
 
   // Shop suggestions
   List<String> _shopSuggestions = [];
@@ -76,6 +80,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       text: entry != null ? entry.costPerUnit.toString() : '',
     );
     _notesController = TextEditingController(text: entry?.notes ?? '');
+    
+    _paymentStatus = entry?.paymentStatus ?? PaymentStatus.paid;
+    _paidAmountController = TextEditingController(
+      text: entry != null 
+          ? entry.paidAmount.toString() 
+          : '', // Initialized to empty, will be auto-filled logic
+    );
 
     // Calculate initial values if editing
     if (entry != null) {
@@ -90,6 +101,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     _quantityController.dispose();
     _costController.dispose();
     _notesController.dispose();
+    _paidAmountController.dispose();
     super.dispose();
   }
 
@@ -175,6 +187,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       ratePerUnit: rate,
       quantity: quantity,
       costPerUnit: costPerUnit,
+      paymentStatus: _paymentStatus,
+      paidAmount: _paymentStatus == PaymentStatus.paid 
+          ? rate * quantity // Fully paid
+          : double.tryParse(_paidAmountController.text) ?? 0.0,
       notes: _notesController.text.trim().isEmpty 
           ? null 
           : _notesController.text.trim(),
@@ -220,6 +236,8 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       _quantityController.clear();
       _costController.clear();
       _notesController.clear();
+      _paymentStatus = PaymentStatus.paid;
+      _paidAmountController.clear();
       _totalSalesAmount = 0;
       _totalCost = 0;
       _profit = 0;
@@ -347,6 +365,60 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 },
                 onChanged: (_) => _calculateTotals(),
               ),
+              const SizedBox(height: 24),
+              
+              // Payment Status
+              Text(
+                'Payment Status',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<PaymentStatus>(
+                      title: const Text('Paid'),
+                      value: PaymentStatus.paid,
+                      groupValue: _paymentStatus,
+                      onChanged: (value) {
+                         setState(() {
+                           _paymentStatus = value!;
+                           // If switching to paid, auto-fill full amount logically in save, 
+                           // but clear controller to avoid confusion or set to total
+                           _paidAmountController.clear(); 
+                         });
+                      },
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  Expanded(
+                    child: RadioListTile<PaymentStatus>(
+                      title: const Text('Pending'),
+                      value: PaymentStatus.pending,
+                      groupValue: _paymentStatus,
+                      onChanged: (value) {
+                         setState(() => _paymentStatus = value!);
+                      },
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
+              ),
+              
+              // Paid Amount Input (only if Pending)
+              if (_paymentStatus == PaymentStatus.pending)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: NumericTextField(
+                    label: 'Amount Paid (Partial)',
+                    controller: _paidAmountController,
+                    allowDecimal: true,
+                    hint: 'Enter 0 logic for credit',
+                  ),
+                ),
+
               const SizedBox(height: 24),
 
               // Calculated Fields

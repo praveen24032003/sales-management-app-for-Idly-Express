@@ -8,6 +8,10 @@ import '../widgets/summary_card.dart';
 import 'add_entry_screen.dart';
 import 'reports_screen.dart';
 import 'profit_screen.dart';
+import 'profit_screen.dart';
+import 'shop_balances_screen.dart';
+import 'expenses_screen.dart';
+import '../providers/expense_provider.dart';
 
 /// Dashboard screen - main home screen showing key stats
 class DashboardScreen extends StatefulWidget {
@@ -30,6 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Load data when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SalesProvider>().loadData();
+      context.read<ExpenseProvider>().loadExpenses();
     });
   }
 
@@ -41,22 +46,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => context.read<SalesProvider>().loadData(),
+            onPressed: () {
+              context.read<SalesProvider>().loadData();
+              context.read<ExpenseProvider>().loadExpenses();
+            },
             tooltip: 'Refresh',
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
-              if (value == 'mock') {
-                _generateMockData();
-              } else if (value == 'clear') {
+              if (value == 'clear') {
                 _deleteAllData();
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'mock',
-                child: Text('Generate Mock Data'),
-              ),
               const PopupMenuItem(
                 value: 'clear',
                 child: Text('Clear All Data'),
@@ -125,29 +127,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       // Monthly Sales
                       SummaryCard(
-                        title: "This Month",
+                        title: "Month Sales",
                         value: _currencyFormat.format(provider.monthTotalSales),
                         icon: Icons.calendar_month,
                         iconColor: Colors.blue,
                       ),
-                      // Annual Sales
-                      SummaryCard(
-                        title: "This Year",
-                        value: _currencyFormat.format(provider.yearTotalSales),
-                        icon: Icons.calendar_today,
-                        iconColor: Colors.purple,
+                      // Month Expenses (New)
+                      Consumer<ExpenseProvider>(
+                        builder: (context, expenseProvider, _) => SummaryCard(
+                          title: "Month Expenses",
+                          value: _currencyFormat.format(expenseProvider.monthTotal),
+                          icon: Icons.money_off,
+                          iconColor: Colors.red,
+                        ),
                       ),
-                      // Annual Profit
-                      SummaryCard(
-                        title: "Year Profit",
-                        value: _currencyFormat.format(provider.yearTotalProfit),
-                        icon: Icons.analytics,
-                        iconColor: provider.yearTotalProfit >= 0
-                            ? context.profitColor
-                            : context.lossColor,
-                        valueColor: provider.yearTotalProfit >= 0
-                            ? context.profitColor
-                            : context.lossColor,
+                      // Month Net Profit (New)
+                      Consumer<ExpenseProvider>(
+                        builder: (context, expenseProvider, _) {
+                          final netProfit = provider.monthTotalProfit - expenseProvider.monthTotal;
+                          return SummaryCard(
+                            title: "Month Net Profit",
+                            value: _currencyFormat.format(netProfit),
+                            icon: Icons.analytics,
+                            iconColor: netProfit >= 0
+                                ? context.profitColor
+                                : context.lossColor,
+                            valueColor: netProfit >= 0
+                                ? context.profitColor
+                                : context.lossColor,
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -176,6 +185,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         icon: Icons.bar_chart,
                         onTap: () => _navigateToReports(),
                         backgroundColor: Colors.blue,
+                      ),
+                      QuickActionButton(
+                        label: 'Pending',
+                        icon: Icons.pending_actions,
+                        onTap: () => _navigateToShopBalances(),
+                        backgroundColor: Colors.orange,
+                      ),
+                      QuickActionButton(
+                        label: 'Expenses',
+                        icon: Icons.receipt_long,
+                        onTap: () => _navigateToExpenses(),
+                        backgroundColor: Colors.redAccent,
                       ),
                       QuickActionButton(
                         label: 'Profit Analysis',
@@ -322,6 +343,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _navigateToShopBalances() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ShopBalancesScreen()),
+    );
+  }
+
+  void _navigateToExpenses() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ExpensesScreen()),
+    );
+  }
+
   void _showEntryDetails(entry) {
     showModalBottomSheet(
       context: context,
@@ -438,31 +473,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Future<void> _generateMockData() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Generate Mock Data?'),
-        content: const Text('This will add random sales data for the last 90 days.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Generate'),
-          ),
-        ],
-      ),
-    );
 
-    if (confirmed == true && mounted) {
-      await context.read<SalesProvider>().generateMockData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: const Text('Mock data generated!'), backgroundColor: context.profitColor),
-        );
-      }
-    }
-  }
 
   Future<void> _deleteAllData() async {
     final confirmed = await showDialog<bool>(

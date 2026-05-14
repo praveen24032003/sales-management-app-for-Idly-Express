@@ -10,7 +10,12 @@ class SalesEntry {
   final double ratePerUnit;
   final int quantity;
   final double costPerUnit;
+  final PaymentStatus paymentStatus;
+  final double? paidAmount;
   final String? notes;
+  final String? firestoreId;
+  final int lastModified;
+  final bool isSynced;
 
   SalesEntry({
     this.id,
@@ -21,16 +26,23 @@ class SalesEntry {
     required this.ratePerUnit,
     required this.quantity,
     required this.costPerUnit,
+    this.paymentStatus = PaymentStatus.paid,
+    double? paidAmount,
     this.notes,
-  });
+    this.firestoreId,
+    this.lastModified = 0,
+    this.isSynced = false,
+  }) : paidAmount = paidAmount ?? (quantity * ratePerUnit);
 
   // Calculated fields
   double get totalSalesAmount => quantity * ratePerUnit;
   double get totalCost => quantity * costPerUnit;
   double get profit => totalSalesAmount - totalCost;
   bool get isProfitable => profit >= 0;
+  double get pendingAmount => totalSalesAmount - (paidAmount ?? 0);
+  bool get isFullyPaid => pendingAmount <= 0.1; // Tolerance for float math
 
-  // Convert to Map for database storage
+  // Convert to Map
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -44,11 +56,16 @@ class SalesEntry {
       'totalSalesAmount': totalSalesAmount,
       'totalCost': totalCost,
       'profit': profit,
+      'paymentStatus': paymentStatus.index,
+      'paidAmount': paidAmount,
       'notes': notes,
+      'firestore_id': firestoreId,
+      'last_modified': lastModified,
+      'is_synced': isSynced ? 1 : 0,
     };
   }
 
-  // Create from database Map
+  // Create from Map
   factory SalesEntry.fromMap(Map<String, dynamic> map) {
     return SalesEntry(
       id: map['id'] as int?,
@@ -59,7 +76,14 @@ class SalesEntry {
       ratePerUnit: (map['ratePerUnit'] as num).toDouble(),
       quantity: map['quantity'] as int,
       costPerUnit: (map['costPerUnit'] as num).toDouble(),
+      paymentStatus: PaymentStatus.values[map['paymentStatus'] as int? ?? 0],
+      paidAmount: map['paidAmount'] != null 
+          ? (map['paidAmount'] as num).toDouble() 
+          : (map['quantity'] as int) * (map['ratePerUnit'] as num).toDouble(),
       notes: map['notes'] as String?,
+      firestoreId: map['firestore_id'] as String?,
+      lastModified: map['last_modified'] as int? ?? 0,
+      isSynced: (map['is_synced'] as int? ?? 0) == 1,
     );
   }
 
@@ -73,7 +97,12 @@ class SalesEntry {
     double? ratePerUnit,
     int? quantity,
     double? costPerUnit,
+    PaymentStatus? paymentStatus,
+    double? paidAmount,
     String? notes,
+    String? firestoreId,
+    int? lastModified,
+    bool? isSynced,
   }) {
     return SalesEntry(
       id: id ?? this.id,
@@ -84,15 +113,20 @@ class SalesEntry {
       ratePerUnit: ratePerUnit ?? this.ratePerUnit,
       quantity: quantity ?? this.quantity,
       costPerUnit: costPerUnit ?? this.costPerUnit,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paidAmount: paidAmount ?? this.paidAmount,
       notes: notes ?? this.notes,
+      firestoreId: firestoreId ?? this.firestoreId,
+      lastModified: lastModified ?? this.lastModified,
+      isSynced: isSynced ?? this.isSynced,
     );
   }
 
   // For CSV export
   static String get csvHeader =>
-      'Date,Shop Name,Product,Sale Type,Rate,Quantity,Cost/Unit,Total Sales,Total Cost,Profit,Notes';
+      'Date,Shop Name,Product,Sale Type,Rate,Quantity,Cost/Unit,Total Sales,Total Cost,Profit,Payment Status,Paid Amount,Pending Amount,Notes';
 
   String toCsvRow() {
-    return '${date.toIso8601String().split('T')[0]},$shopName,${productType.displayName},${saleType.displayName},$ratePerUnit,$quantity,$costPerUnit,$totalSalesAmount,$totalCost,$profit,${notes ?? ''}';
+    return '${date.toIso8601String().split('T')[0]},$shopName,${productType.displayName},${saleType.displayName},$ratePerUnit,$quantity,$costPerUnit,$totalSalesAmount,$totalCost,$profit,${paymentStatus.displayName},$paidAmount,$pendingAmount,${notes ?? ''}';
   }
 }

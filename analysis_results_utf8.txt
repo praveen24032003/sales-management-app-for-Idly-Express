@@ -1,0 +1,50 @@
+Analyzing first_flutter_app...
+
+  error - lib\models\sales_entry_model.dart:13:9 - Undefined class 'PaymentStatus'. Try changing the name to the name of an existing class, or creating a class with the name 'PaymentStatus'. - undefined_class
+  error - lib\models\sales_entry_model.dart:26:26 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\models\sales_entry_model.dart:70:22 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\models\sales_entry_model.dart:88:5 - Undefined class 'PaymentStatus'. Try changing the name to the name of an existing class, or creating a class with the name 'PaymentStatus'. - undefined_class
+  error - lib\providers\sales_provider.dart:59:3 - A value of type 'Type' can't be returned from the function 'yearTotalCost' because it has a return type of 'double'. - return_of_invalid_type
+  error - lib\providers\sales_provider.dart:59:3 - Expected to find ';'. - expected_token
+  error - lib\providers\sales_provider.dart:59:14 - The name 'yearTotalCost' is already defined. Try renaming one of the declarations. - duplicate_definition
+           - The first definition of this name at lib\providers\sales_provider.dart:58:14.
+  error - lib\screens\add_entry_screen.dart:36:8 - Undefined class 'PaymentStatus'. Try changing the name to the name of an existing class, or creating a class with the name 'PaymentStatus'. - undefined_class
+  error - lib\screens\add_entry_screen.dart:84:46 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\screens\add_entry_screen.dart:191:37 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\screens\add_entry_screen.dart:239:24 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\screens\add_entry_screen.dart:381:42 - The name 'PaymentStatus' isn't a type, so it can't be used as a type argument. Try correcting the name to an existing type, or defining a type named 'PaymentStatus'. - non_type_as_type_argument
+  error - lib\screens\add_entry_screen.dart:383:30 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\screens\add_entry_screen.dart:397:42 - The name 'PaymentStatus' isn't a type, so it can't be used as a type argument. Try correcting the name to an existing type, or defining a type named 'PaymentStatus'. - non_type_as_type_argument
+  error - lib\screens\add_entry_screen.dart:399:30 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\screens\add_entry_screen.dart:411:37 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\screens\add_entry_screen.dart:418:21 - The named parameter 'hint' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'hint'. - undefined_named_parameter
+  error - lib\screens\reports_screen.dart:774:43 - The method 'generateMockData' isn't defined for the type 'SalesProvider'. Try correcting the name to the name of an existing method, or defining a method named 'generateMockData'. - undefined_method
+  error - lib\screens\shop_balances_screen.dart:29:55 - The method 'getAllPendingAmounts' isn't defined for the type 'SalesProvider'. Try correcting the name to the name of an existing method, or defining a method named 'getAllPendingAmounts'. - undefined_method
+  error - lib\services\database_service.dart:355:17 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\services\database_service.dart:355:98 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - lib\services\database_service.dart:356:17 - Undefined name 'PaymentStatus'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+warning - lib\screens\add_entry_screen.dart:40:16 - The value of the field '_shopSuggestions' isn't used. Try removing the field, or using it. - unused_field
+warning - lib\screens\add_entry_screen.dart:41:8 - The value of the field '_showSuggestions' isn't used. Try removing the field, or using it. - unused_field
+warning - lib\screens\add_entry_screen.dart:128:16 - The declaration '_fetchShopSuggestions' isn't referenced. Try removing the declaration of '_fetchShopSuggestions'. - unused_element
+warning - lib\screens\dashboard_screen.dart:11:8 - Duplicate import. Try removing all but one import of the library. - duplicate_import
+   info - lib\core\constants.dart:1:1 - Dangling library doc comment. Add a 'library' directive after the library comment. - dangling_library_doc_comments
+   info - lib\providers\sales_provider.dart:59:14 - Missing type annotation. Try adding a type annotation. - strict_top_level_inference
+   info - lib\screens\add_entry_screen.dart:384:23 - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\add_entry_screen.dart:385:23 - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\add_entry_screen.dart:400:23 - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\add_entry_screen.dart:401:23 - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\dashboard_screen.dart:283:91 - Unnecessary braces in a string interpolation. Try removing the braces. - unnecessary_brace_in_string_interps
+   info - lib\screens\dashboard_screen.dart:360:26 - Missing type annotation. Try adding a type annotation. - strict_top_level_inference
+   info - lib\screens\expenses_screen.dart:75:78 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\expenses_screen.dart:93:41 - Unnecessary use of multiple underscores. Try using '_'. - unnecessary_underscores
+   info - lib\screens\expenses_screen.dart:98:53 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\reports_screen.dart:706:13 - 'Share' is deprecated and shouldn't be used. Use SharePlus instead. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\reports_screen.dart:706:19 - 'shareXFiles' is deprecated and shouldn't be used. Use SharePlus.instance.share() instead. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\reports_screen.dart:733:26 - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check. - use_build_context_synchronously
+   info - lib\screens\shop_balances_screen.dart:110:47 - Unnecessary use of multiple underscores. Try using '_'. - unnecessary_underscores
+   info - lib\screens\shop_balances_screen.dart:117:90 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\shop_balances_screen.dart:120:68 - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\widgets\custom_dropdown.dart:35:11 - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\widgets\custom_dropdown.dart:77:11 - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+
+45 issues found.

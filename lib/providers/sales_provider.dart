@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 import '../core/constants.dart';
 import '../models/sales_entry_model.dart';
 import '../services/database_service.dart';
-import '../services/mock_data_service.dart';
+import '../services/sync_service.dart';
+
 
 /// Sales Provider - State management for the app
 class SalesProvider extends ChangeNotifier {
@@ -57,6 +58,14 @@ class SalesProvider extends ChangeNotifier {
       _yearEntries.fold<double>(0.0, (sum, e) => sum + e.profit);
   double get yearTotalCost =>
       _yearEntries.fold<double>(0.0, (sum, e) => sum + e.totalCost);
+
+  // Total Pending Amount (across all entries)
+  double get totalPendingAmount =>
+      _allEntries.fold<double>(0.0, (sum, e) => sum + e.pendingAmount);
+
+  Future<Map<String, double>> getAllPendingAmounts() async {
+    return await _db.getAllPendingAmounts();
+  }
 
   // ==================== PROFIT ANALYSIS ====================
 
@@ -122,6 +131,7 @@ class SalesProvider extends ChangeNotifier {
     try {
       await _db.insertSalesEntry(entry);
       await loadData(); // Refresh all data
+      SyncService.instance.syncAll(); // Trigger sync
       return true;
     } catch (e) {
       _error = 'Failed to add entry: $e';
@@ -135,6 +145,7 @@ class SalesProvider extends ChangeNotifier {
     try {
       await _db.updateSalesEntry(entry);
       await loadData();
+      SyncService.instance.syncAll();
       return true;
     } catch (e) {
       _error = 'Failed to update entry: $e';
@@ -148,6 +159,7 @@ class SalesProvider extends ChangeNotifier {
     try {
       await _db.deleteSalesEntry(id);
       await loadData();
+      SyncService.instance.syncAll();
       return true;
     } catch (e) {
       _error = 'Failed to delete entry: $e';
@@ -213,21 +225,7 @@ class SalesProvider extends ChangeNotifier {
     await loadData();
   }
 
-  /// Generate mock data (Debug only)
-  Future<void> generateMockData() async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      final mockService = MockDataService();
-      await mockService.generateMockData();
-      await loadData(); // Reload to show new data
-    } catch (e) {
-      _error = 'Failed to generate mock data: $e';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
+
 
   /// Clear error
   void clearError() {
