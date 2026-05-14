@@ -1,7 +1,5 @@
 # Idly Express – Sales & Profit Tracker
 
-![Flutter](https://img.shields.io/badge/Flutter-3.10-blue.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 ## 📖 Overview
 
@@ -15,11 +13,7 @@
 - **Mock data generator** for quick testing and UI prototyping.
 - **State management** powered by `provider`.
 - **Local persistence** using `sqflite`.
-
-## 📸 Screenshots
-
-*(Add screenshots of the dashboard, profit screen, and reports screen here)*
-
+- 
 ## 🛠️ Installation
 
 1. **Clone the repository**
