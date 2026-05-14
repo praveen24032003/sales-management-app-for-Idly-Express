@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../core/constants.dart';
 import '../core/theme.dart';
 import '../providers/sales_provider.dart';
+import '../widgets/soft_card.dart';
 
 /// Screen to show pending balances for all shops
 class ShopBalancesScreen extends StatefulWidget {
@@ -75,9 +76,8 @@ class _ShopBalancesScreenState extends State<ShopBalancesScreen> {
                 )
               : Column(
                   children: [
-                    // Total Summary
-                    Container(
-                      width: double.infinity,
+                            // Total Summary
+                            SoftCard(
                       padding: const EdgeInsets.all(24),
                       color: Theme.of(context).colorScheme.surface,
                       child: Column(
@@ -107,17 +107,17 @@ class _ShopBalancesScreenState extends State<ShopBalancesScreen> {
                       child: ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: _pendingMap.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final shopName = _pendingMap.keys.elementAt(index);
                           final amount = _pendingMap[shopName]!;
                           
                           return Card(
                             elevation: 0,
-                            color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: context.lossColor.withOpacity(0.2),
+                                backgroundColor: context.lossColor.withValues(alpha: 0.2),
                                 child: Icon(Icons.store, color: context.lossColor),
                               ),
                               title: Text(
