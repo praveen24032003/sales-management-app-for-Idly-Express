@@ -77,10 +77,14 @@ const String currencySymbol = '₹';
 const String dbName = 'idly_express.db';
 const String salesTable = 'sales_entries';
 const String shopsTable = 'shops';
+const String contactsTable = 'contacts';
 const String supplyTemplatesTable = 'supply_templates';
 const String appSettingsTable = 'app_settings';
 const String dispatchLeavesTable = 'dispatch_leaves';
 const String settingLastTemplateGenerationDate = 'last_template_generation_date';
+
+const String contactTypeShop = 'shop';
+const String contactTypeCustomer = 'customer';
 
 // Payment Status
 enum PaymentStatus {

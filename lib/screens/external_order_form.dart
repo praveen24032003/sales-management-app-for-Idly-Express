@@ -35,8 +35,7 @@ class _ExternalOrderFormState extends State<ExternalOrderForm> {
   DeliverySlot _slot = DeliverySlot.morning;
   PaymentStatus _paymentStatus = PaymentStatus.paid;
 
-  List<String> _shopSuggestions = [];
-  List<Map<String, String>> _recentCustomers = [];
+  List<Map<String, dynamic>> _recentCustomers = [];
   bool _saving = false;
 
   double get _total {
@@ -64,12 +63,8 @@ class _ExternalOrderFormState extends State<ExternalOrderForm> {
   }
 
   Future<void> _onShopNameChanged(String query) async {
-    if (query.length < 2) {
-      setState(() => _shopSuggestions = []);
-      return;
-    }
-    final sug = await DatabaseService.instance.getShopSuggestions(query);
-    if (mounted) setState(() => _shopSuggestions = sug);
+    if (query.length < 2) return;
+    await DatabaseService.instance.getShopSuggestions(query);
   }
 
   @override
@@ -112,13 +107,13 @@ class _ExternalOrderFormState extends State<ExternalOrderForm> {
         notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       );
 
-      if (mounted) {
-        await Provider.of<SalesProvider>(context, listen: false).addEntry(entry);
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order saved ✓'), behavior: SnackBarBehavior.floating),
-        );
-      }
+      final provider = Provider.of<SalesProvider>(context, listen: false);
+      await provider.addEntry(entry);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Order saved ✓'), behavior: SnackBarBehavior.floating),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -357,7 +352,7 @@ class _ExternalOrderFormState extends State<ExternalOrderForm> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   margin: const EdgeInsets.only(bottom: 6),
                   decoration: BoxDecoration(
-                    color: primary.withOpacity(0.08),
+                    color: primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Row(
@@ -478,7 +473,7 @@ class _DropdownField<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<T>(
-      value: value,
+      initialValue: value,
       items: items.map((i) => DropdownMenuItem(value: i, child: Text(labelOf(i)))).toList(),
       onChanged: onChanged,
       decoration: InputDecoration(

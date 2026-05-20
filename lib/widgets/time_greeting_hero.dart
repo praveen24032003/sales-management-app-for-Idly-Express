@@ -83,11 +83,11 @@ class _TimeGreetingHeroState extends State<TimeGreetingHero>
             right: 32,
             child: AnimatedBuilder(
               animation: _floatAnim,
-              builder: (_, __) => Transform.translate(
+              builder: (context, child) => Transform.translate(
                 offset: Offset(0, _floatAnim.value),
                 child: AnimatedBuilder(
                   animation: _glowAnim,
-                  builder: (_, __) => Container(
+                  builder: (context, child) => Container(
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
@@ -95,7 +95,7 @@ class _TimeGreetingHeroState extends State<TimeGreetingHero>
                       color: sunMoonColor,
                       boxShadow: [
                         BoxShadow(
-                          color: sunMoonColor.withOpacity(_glowAnim.value),
+                          color: sunMoonColor.withValues(alpha: _glowAnim.value),
                           blurRadius: 24,
                           spreadRadius: 6,
                         ),
@@ -103,7 +103,7 @@ class _TimeGreetingHeroState extends State<TimeGreetingHero>
                     ),
                     child: Icon(
                       _bodyIcon,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       size: 28,
                     ),
                   ),
@@ -168,7 +168,7 @@ class _TimeGreetingHeroState extends State<TimeGreetingHero>
             width: size,
             height: size,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.5 + rng.nextDouble() * 0.5),
+              color: Colors.white.withValues(alpha: 0.5 + rng.nextDouble() * 0.5),
               shape: BoxShape.circle,
             ),
           ),

@@ -156,6 +156,73 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
     }
   }
 
+  Future<bool> _confirmLeaveAction({
+    required SupplyTemplate template,
+    required DateTime date,
+    required DeliverySlot slot,
+    required bool undo,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(undo ? 'Undo leave?' : 'Mark leave?'),
+        content: Text(
+          undo
+              ? 'Remove leave for ${template.shopName} on ${_dayLabel(date)} ${slot.displayName.toLowerCase()}?'
+              : 'Mark ${template.shopName} as leave on ${_dayLabel(date)} ${slot.displayName.toLowerCase()}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(undo ? 'Undo' : 'Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    return confirmed ?? false;
+  }
+
+  void _showLeaveSnackBar({
+    required SupplyTemplate template,
+    required DateTime date,
+    required DeliverySlot slot,
+  }) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('${template.shopName} marked leave for ${slot.displayName.toLowerCase()}'),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () async {
+              await _markLeave(template, date, slot);
+            },
+          ),
+        ),
+      );
+  }
+
+  Future<void> _handleLeaveSwipe(SupplyTemplate template, DateTime date, DeliverySlot slot, bool isLeave) async {
+    final confirmed = await _confirmLeaveAction(
+      template: template,
+      date: date,
+      slot: slot,
+      undo: isLeave,
+    );
+    if (!confirmed) return;
+
+    await _markLeave(template, date, slot);
+    if (!isLeave && mounted) {
+      _showLeaveSnackBar(template: template, date: date, slot: slot);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -269,7 +336,7 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
         DismissDirection.endToStart: 0.25,
       },
       confirmDismiss: (dir) async {
-        if (isDispatched || isLeave) {
+        if (isDispatched) {
           HapticFeedback.heavyImpact();
           return false;
         }
@@ -277,7 +344,7 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
         if (dir == DismissDirection.startToEnd) {
           await _dispatch(t, date, slot);
         } else {
-          await _markLeave(t, date, slot);
+          await _handleLeaveSwipe(t, date, slot, isLeave);
         }
         return false; // Keep in list — state updated via setState
       },
@@ -295,16 +362,16 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
           color: isLeave
-              ? const Color(0xFFE53E3E).withOpacity(isDark ? 0.15 : 0.08)
+              ? const Color(0xFFE53E3E).withValues(alpha: isDark ? 0.15 : 0.08)
               : isDispatched
-                  ? const Color(0xFF059669).withOpacity(isDark ? 0.15 : 0.08)
+                ? const Color(0xFF059669).withValues(alpha: isDark ? 0.15 : 0.08)
                   : surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
             color: isLeave
-                ? const Color(0xFFE53E3E).withOpacity(0.3)
+              ? const Color(0xFFE53E3E).withValues(alpha: 0.3)
                 : isDispatched
-                    ? const Color(0xFF059669).withOpacity(0.3)
+                ? const Color(0xFF059669).withValues(alpha: 0.3)
                     : (isDark ? AppColors.borderDark : AppColors.borderLight),
           ),
         ),
@@ -312,10 +379,10 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           leading: CircleAvatar(
             backgroundColor: isLeave
-                ? const Color(0xFFE53E3E).withOpacity(0.15)
+              ? const Color(0xFFE53E3E).withValues(alpha: 0.15)
                 : isDispatched
-                    ? const Color(0xFF059669).withOpacity(0.15)
-                    : Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                ? const Color(0xFF059669).withValues(alpha: 0.15)
+                : Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
             child: Icon(
               isLeave
                   ? Icons.do_not_disturb_alt_rounded
@@ -352,7 +419,7 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(Icons.phone, color: Theme.of(context).colorScheme.primary, size: 16),
@@ -361,7 +428,10 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
               if (isLeave || isDispatched)
                 const SizedBox(width: 6),
               if (isLeave)
-                Text('Leave', style: TextStyle(color: const Color(0xFFE53E3E), fontSize: 11, fontWeight: FontWeight.w600))
+                GestureDetector(
+                  onTap: () => _handleLeaveSwipe(t, date, slot, true),
+                  child: Text('Undo leave', style: TextStyle(color: const Color(0xFFE53E3E), fontSize: 11, fontWeight: FontWeight.w600)),
+                )
               else if (isDispatched)
                 Text('Done', style: TextStyle(color: const Color(0xFF059669), fontSize: 11, fontWeight: FontWeight.w600)),
             ],

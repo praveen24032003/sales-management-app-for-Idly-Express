@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'home_tab.dart';
 import 'orders_tab.dart';
-import 'reports_screen.dart';
+import 'dispatch_planner_screen.dart';
 import 'more_tab.dart';
 
 /// Main shell for the app with bottom nav and FAB-notched center
@@ -33,7 +33,7 @@ class _HomeShellState extends State<HomeShell> {
         children: [
           HomeTab(onSwitchTab: _onSwitchTab),
           OrdersTab(onSwitchTab: _onSwitchTab),
-          ReportsScreen(),
+          DispatchPlannerScreen(),
           MoreTab(),
         ],
       ),
@@ -50,7 +50,7 @@ class _HomeShellState extends State<HomeShell> {
         items: [
           BottomNavItem(icon: Icons.home_rounded, label: 'Home'),
           BottomNavItem(icon: Icons.shopping_cart_rounded, label: 'Orders'),
-          BottomNavItem(icon: Icons.assessment_rounded, label: 'Reports'),
+          BottomNavItem(icon: Icons.local_shipping_rounded, label: 'Dispatch'),
           BottomNavItem(icon: Icons.more_horiz_rounded, label: 'More'),
         ],
       ),

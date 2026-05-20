@@ -25,7 +25,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -118,6 +118,20 @@ class DatabaseService {
       ''');
     }
 
+    if (oldVersion < 8) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $contactsTable (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          mobile TEXT,
+          contact_type TEXT NOT NULL,
+          last_used TEXT NOT NULL,
+          UNIQUE(name, contact_type)
+        )
+      ''');
+    }
+  }
+
   Future<void> _createDB(Database db, int version) async {
     // Sales entries table
     await db.execute('''
@@ -208,6 +222,17 @@ class DatabaseService {
         leave_date TEXT NOT NULL,
         delivery_slot INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE $contactsTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        mobile TEXT,
+        contact_type TEXT NOT NULL,
+        last_used TEXT NOT NULL,
+        UNIQUE(name, contact_type)
       )
     ''');
   }
@@ -478,6 +503,222 @@ class DatabaseService {
     await db.update(shopsTable, {'mobile': mobile}, where: 'name = ?', whereArgs: [name]);
   }
 
+  Future<void> saveManualContact({
+    required String contactType,
+    required String name,
+    String? mobile,
+  }) async {
+    final db = await database;
+    final normalizedName = name.trim();
+    final normalizedMobile = mobile?.trim();
+    final now = DateTime.now().toIso8601String();
+
+    await db.insert(
+      contactsTable,
+      {
+        'name': normalizedName,
+        'mobile': normalizedMobile,
+        'contact_type': contactType,
+        'last_used': now,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    if (contactType == contactTypeShop) {
+      final existing = await db.query(
+        shopsTable,
+        columns: ['name'],
+        where: 'name = ?',
+        whereArgs: [normalizedName],
+        limit: 1,
+      );
+      if (existing.isEmpty) {
+        await db.insert(
+          shopsTable,
+          {'name': normalizedName, 'mobile': normalizedMobile, 'lastUsed': now},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      } else {
+        await db.update(
+          shopsTable,
+          {'mobile': normalizedMobile, 'lastUsed': now},
+          where: 'name = ?',
+          whereArgs: [normalizedName],
+        );
+      }
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getManualContacts(String contactType) async {
+    final db = await database;
+    return db.query(
+      contactsTable,
+      columns: ['name', 'mobile', 'last_used'],
+      where: 'contact_type = ?',
+      whereArgs: [contactType],
+      orderBy: 'last_used DESC',
+    );
+  }
+
+  List<Map<String, dynamic>> _mergeContacts(List<Map<String, dynamic>> primary, List<Map<String, dynamic>> secondary) {
+    final merged = <String, Map<String, dynamic>>{};
+
+    void mergeOne(Map<String, dynamic> contact) {
+      final name = (contact['name'] as String? ?? '').trim();
+      if (name.isEmpty) return;
+      final key = name.toLowerCase();
+      final mobile = (contact['mobile'] as String?)?.trim();
+      final lastUsed = (contact['lastUsed'] ?? contact['last_used'] ?? '') as String;
+      final current = merged[key];
+
+      if (current == null) {
+        merged[key] = {'name': name, 'mobile': mobile, 'lastUsed': lastUsed};
+        return;
+      }
+
+      final currentMobile = (current['mobile'] as String?)?.trim();
+      final chosenMobile = (mobile != null && mobile.isNotEmpty) ? mobile : currentMobile;
+      final currentLastUsed = (current['lastUsed'] as String?) ?? '';
+      merged[key] = {
+        'name': current['name'] ?? name,
+        'mobile': chosenMobile,
+        'lastUsed': currentLastUsed.compareTo(lastUsed) >= 0 ? currentLastUsed : lastUsed,
+      };
+    }
+
+    for (final contact in primary) {
+      mergeOne(contact);
+    }
+    for (final contact in secondary) {
+      mergeOne(contact);
+    }
+
+    final contacts = merged.values.toList();
+    contacts.sort((a, b) => ((b['lastUsed'] as String?) ?? '').compareTo((a['lastUsed'] as String?) ?? ''));
+    return contacts;
+  }
+
+  Future<void> updateShopContact({
+    required String oldName,
+    required String newName,
+    String? mobile,
+  }) async {
+    final db = await database;
+    final normalizedNewName = newName.trim();
+    final normalizedMobile = mobile?.trim();
+
+    await db.transaction((txn) async {
+      await txn.update(
+        salesTable,
+        {'shopName': normalizedNewName},
+        where: 'shopName = ?',
+        whereArgs: [oldName],
+      );
+
+      await txn.update(
+        supplyTemplatesTable,
+        {
+          'shop_name': normalizedNewName,
+          'shop_mobile': normalizedMobile,
+        },
+        where: 'shop_name = ?',
+        whereArgs: [oldName],
+      );
+
+      final existing = await txn.query(
+        shopsTable,
+        columns: ['name'],
+        where: 'name = ?',
+        whereArgs: [normalizedNewName],
+        limit: 1,
+      );
+
+      if (existing.isEmpty) {
+        await txn.update(
+          shopsTable,
+          {
+            'name': normalizedNewName,
+            'mobile': normalizedMobile,
+            'lastUsed': DateTime.now().toIso8601String(),
+          },
+          where: 'name = ?',
+          whereArgs: [oldName],
+        );
+      } else {
+        await txn.update(
+          shopsTable,
+          {
+            'mobile': normalizedMobile,
+            'lastUsed': DateTime.now().toIso8601String(),
+          },
+          where: 'name = ?',
+          whereArgs: [normalizedNewName],
+        );
+        if (oldName != normalizedNewName) {
+          await txn.delete(shopsTable, where: 'name = ?', whereArgs: [oldName]);
+        }
+      }
+
+      await txn.insert(
+        contactsTable,
+        {
+          'name': normalizedNewName,
+          'mobile': normalizedMobile,
+          'contact_type': contactTypeShop,
+          'last_used': DateTime.now().toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      if (oldName != normalizedNewName) {
+        await txn.delete(
+          contactsTable,
+          where: 'name = ? AND contact_type = ?',
+          whereArgs: [oldName, contactTypeShop],
+        );
+      }
+    });
+  }
+
+  Future<void> updateExternalCustomerContact({
+    required String oldName,
+    required String newName,
+    String? mobile,
+  }) async {
+    final db = await database;
+    final normalizedNewName = newName.trim();
+    final normalizedMobile = mobile?.trim();
+
+    await db.update(
+      salesTable,
+      {
+        'shopName': normalizedNewName,
+        'customer_mobile': normalizedMobile,
+      },
+      where: 'order_type = ? AND shopName = ?',
+      whereArgs: [OrderType.externalOrder.index, oldName],
+    );
+
+    await db.insert(
+      contactsTable,
+      {
+        'name': normalizedNewName,
+        'mobile': normalizedMobile,
+        'contact_type': contactTypeCustomer,
+        'last_used': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    if (oldName != normalizedNewName) {
+      await db.delete(
+        contactsTable,
+        where: 'name = ? AND contact_type = ?',
+        whereArgs: [oldName, contactTypeCustomer],
+      );
+    }
+  }
+
   Future<String?> getShopMobile(String name) async {
     final db = await database;
     final result = await db.query(shopsTable, columns: ['mobile'], where: 'name = ?', whereArgs: [name], limit: 1);
@@ -485,10 +726,14 @@ class DatabaseService {
     return result.first['mobile'] as String?;
   }
 
-  Future<List<Map<String, String?>>> getAllShopsWithMobile() async {
+  Future<List<Map<String, dynamic>>> getAllShopsWithMobile() async {
     final db = await database;
-    final result = await db.query(shopsTable, columns: ['name', 'mobile'], orderBy: 'lastUsed DESC');
-    return result.map((r) => {'name': r['name'] as String?, 'mobile': r['mobile'] as String?}).toList();
+    final result = await db.query(shopsTable, columns: ['name', 'mobile', 'lastUsed'], orderBy: 'lastUsed DESC');
+    final manual = await getManualContacts(contactTypeShop);
+    return _mergeContacts(
+      result.map((r) => {'name': r['name'] as String?, 'mobile': r['mobile'] as String?, 'lastUsed': r['lastUsed'] as String? ?? ''}).toList(),
+      manual.map((r) => {'name': r['name'] as String?, 'mobile': r['mobile'] as String?, 'lastUsed': r['last_used'] as String? ?? ''}).toList(),
+    );
   }
 
   Future<List<Map<String, dynamic>>> getRecentExternalCustomers() async {
@@ -497,13 +742,15 @@ class DatabaseService {
       SELECT shopName as name, customer_mobile as mobile, MAX(date) as lastUsed
       FROM $salesTable
       WHERE order_type = ${OrderType.externalOrder.index}
-        AND customer_mobile IS NOT NULL
-        AND customer_mobile != ''
       GROUP BY shopName, customer_mobile
       ORDER BY lastUsed DESC
       LIMIT 30
     ''');
-    return result;
+    final manual = await getManualContacts(contactTypeCustomer);
+    return _mergeContacts(
+      result,
+      manual.map((r) => {'name': r['name'] as String?, 'mobile': r['mobile'] as String?, 'lastUsed': r['last_used'] as String? ?? ''}).toList(),
+    );
   }
 
   /// Get shop suggestions based on query
@@ -563,6 +810,43 @@ class DatabaseService {
       }
     }
     return pendingMap;
+  }
+
+  Future<void> applyPaymentToShopPending(String shopName, double paidAmount) async {
+    if (paidAmount <= 0) return;
+
+    final db = await database;
+    final entries = await getEntriesByShop(shopName);
+    final pendingEntries = entries
+        .where((entry) => entry.pendingAmount > 0.1)
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    double remaining = paidAmount;
+
+    await db.transaction((txn) async {
+      for (final entry in pendingEntries) {
+        if (remaining <= 0.01) break;
+
+        final payable = entry.pendingAmount < remaining ? entry.pendingAmount : remaining;
+        final updatedPaidAmount = (entry.paidAmount ?? 0) + payable;
+        final updatedEntry = entry.copyWith(
+          paidAmount: updatedPaidAmount,
+          paymentStatus: (entry.totalSalesAmount - updatedPaidAmount) <= 0.1
+              ? PaymentStatus.paid
+              : PaymentStatus.pending,
+        );
+
+        await txn.update(
+          salesTable,
+          updatedEntry.toMap(),
+          where: 'id = ?',
+          whereArgs: [entry.id],
+        );
+
+        remaining -= payable;
+      }
+    });
   }
 
   // ==================== EXPENSES CRUD ====================

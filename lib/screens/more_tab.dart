@@ -9,9 +9,8 @@ import '../widgets/soft_card.dart';
 import 'expenses_screen.dart';
 import 'shop_balances_screen.dart';
 import 'profit_screen.dart';
+import 'reports_screen.dart';
 import 'supply_templates_screen.dart';
-import 'dispatch_planner_screen.dart';
-import 'contacts_screen.dart';
 
 /// More tab- settings, navigation, and data management
 class MoreTab extends StatelessWidget {
@@ -36,6 +35,20 @@ class MoreTab extends StatelessWidget {
                 title: 'Money',
               ),
               const SizedBox(height: AppSpacing.md),
+              SoftCard(
+                child: _MenuRow(
+                  icon: Icons.assessment_rounded,
+                  label: 'Reports',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const ReportsScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
               SoftCard(
                 child: _MenuRow(
                   icon: Icons.receipt_long_rounded,

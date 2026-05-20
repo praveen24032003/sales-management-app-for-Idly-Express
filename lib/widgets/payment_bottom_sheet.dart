@@ -19,7 +19,41 @@ class PaymentBottomSheet extends StatefulWidget {
     required this.slot,
   });
 
-  static Future<_PaymentResult?> show(
+  static Future<DispatchPaymentResult?> show(
+    BuildContext context, {
+    required String shopName,
+    required int quantity,
+    required double ratePerUnit,
+    required DeliverySlot slot,
+  }) {
+    return showDispatch(
+      context,
+      shopName: shopName,
+      quantity: quantity,
+      ratePerUnit: ratePerUnit,
+      slot: slot,
+    );
+  }
+
+  static Future<DispatchPaymentResult?> showDispatch(
+    BuildContext context, {
+    required String shopName,
+    required int quantity,
+    required double ratePerUnit,
+    required DeliverySlot slot,
+  }) async {
+    final result = await _showInternal(
+      context,
+      shopName: shopName,
+      quantity: quantity,
+      ratePerUnit: ratePerUnit,
+      slot: slot,
+    );
+    if (result == null) return null;
+    return DispatchPaymentResult(result.status, result.paidAmount);
+  }
+
+  static Future<_PaymentResult?> _showInternal(
     BuildContext context, {
     required String shopName,
     required int quantity,
@@ -256,7 +290,7 @@ class _PaymentBottomSheetState extends State<PaymentBottomSheet> {
         duration: AppAnimations.fast,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? color.withOpacity(0.12) : Colors.transparent,
+          color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
           border: Border.all(
             color: selected ? color : border,
             width: selected ? 2 : 1,
@@ -310,14 +344,13 @@ class DispatchPaymentResult {
     required double ratePerUnit,
     required DeliverySlot slot,
   }) async {
-    final result = await PaymentBottomSheet.show(
+    final result = await PaymentBottomSheet.showDispatch(
       context,
       shopName: shopName,
       quantity: quantity,
       ratePerUnit: ratePerUnit,
       slot: slot,
     );
-    if (result == null) return null;
-    return DispatchPaymentResult(result.status, result.paidAmount);
+    return result;
   }
 }

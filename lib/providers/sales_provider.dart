@@ -104,6 +104,69 @@ class SalesProvider extends ChangeNotifier {
     return await _db.getAllPendingAmounts();
   }
 
+  Future<bool> updateShopContact({
+    required String oldName,
+    required String newName,
+    String? mobile,
+  }) async {
+    try {
+      await _db.updateShopContact(oldName: oldName, newName: newName, mobile: mobile);
+      await loadData();
+      SyncService.instance.syncAll();
+      return true;
+    } catch (e) {
+      _error = 'Failed to update shop contact: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> addManualContact({
+    required String contactType,
+    required String name,
+    String? mobile,
+  }) async {
+    try {
+      await _db.saveManualContact(contactType: contactType, name: name, mobile: mobile);
+      await loadData();
+      return true;
+    } catch (e) {
+      _error = 'Failed to save contact: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateExternalCustomerContact({
+    required String oldName,
+    required String newName,
+    String? mobile,
+  }) async {
+    try {
+      await _db.updateExternalCustomerContact(oldName: oldName, newName: newName, mobile: mobile);
+      await loadData();
+      SyncService.instance.syncAll();
+      return true;
+    } catch (e) {
+      _error = 'Failed to update customer contact: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> applyPaymentToShopPending(String shopName, double paidAmount) async {
+    try {
+      await _db.applyPaymentToShopPending(shopName, paidAmount);
+      await loadData();
+      SyncService.instance.syncAll();
+      return true;
+    } catch (e) {
+      _error = 'Failed to apply payment: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
   // ==================== PROFIT ANALYSIS ====================
 
   // Wholesale vs Retail profit comparison
