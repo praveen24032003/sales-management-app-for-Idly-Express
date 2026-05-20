@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../core/constants.dart';
@@ -50,11 +51,11 @@ class SupplyTemplatesScreen extends StatelessWidget {
                     template.isActive ? Icons.repeat : Icons.pause_circle,
                         color: template.isActive ? context.profitColor : context.subtleText,
                   ),
-                  title: Text('${template.shopName} • ${template.quantity} pcs'),
+                  title: Text('${template.shopName} • ${template.morningQuantity > 0 && template.eveningQuantity > 0 ? '${template.morningQuantity}+${template.eveningQuantity}' : template.quantity} pcs'),
                   subtitle: Text(
-                    '${template.productType.displayName} • ${template.deliverySlot.displayName}${template.deliveryTime != null ? ' (${template.deliveryTime})' : ''}\n'
+                    '${template.productType.displayName} • ${template.morningQuantity > 0 && template.eveningQuantity > 0 ? 'Morning + Evening' : template.deliverySlot.displayName}${template.deliveryTime != null ? ' (${template.deliveryTime})' : ''}\n'
                     'Days: ${_weekdaySummary(template.activeWeekdays)}\n'
-                    'Rate: $currencySymbol${template.ratePerUnit} • Cost: $currencySymbol${template.costPerUnit} • Prep: ${template.prepLeadDays} day(s)',
+                    'Rate: $currencySymbol${template.ratePerUnit} • Cost: $currencySymbol${template.costPerUnit}${template.shopMobile != null ? ' • ${template.shopMobile}' : ''}',
                   ),
                   isThreeLine: true,
                   trailing: PopupMenuButton<String>(
@@ -113,7 +114,9 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _shopController;
-  late final TextEditingController _quantityController;
+  late final TextEditingController _shopMobileController;
+  late final TextEditingController _morningQtyController;
+  late final TextEditingController _eveningQtyController;
   late final TextEditingController _rateController;
   late final TextEditingController _costController;
 
@@ -131,7 +134,9 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
     super.initState();
     final t = widget.template;
     _shopController = TextEditingController(text: t?.shopName ?? '');
-    _quantityController = TextEditingController(text: t?.quantity.toString() ?? '');
+    _shopMobileController = TextEditingController(text: t?.shopMobile ?? '');
+    _morningQtyController = TextEditingController(text: t?.morningQuantity.toString() ?? '0');
+    _eveningQtyController = TextEditingController(text: t?.eveningQuantity.toString() ?? '0');
     _rateController = TextEditingController(text: t?.ratePerUnit.toString() ?? '');
     _costController = TextEditingController(text: t?.costPerUnit.toString() ?? '');
     _productType = t?.productType ?? ProductType.values.first;
@@ -157,7 +162,9 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
   @override
   void dispose() {
     _shopController.dispose();
-    _quantityController.dispose();
+    _shopMobileController.dispose();
+    _morningQtyController.dispose();
+    _eveningQtyController.dispose();
     _rateController.dispose();
     _costController.dispose();
     super.dispose();
@@ -178,12 +185,27 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
       return;
     }
 
+    final morningQty = int.tryParse(_morningQtyController.text) ?? 0;
+    final eveningQty = int.tryParse(_eveningQtyController.text) ?? 0;
+
+    if (morningQty + eveningQty == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter at least one quantity (morning or evening)')),
+      );
+      return;
+    }
+
+    final legacyQty = morningQty + eveningQty > 0 ? morningQty + eveningQty : 1;
+
     final template = SupplyTemplate(
       id: widget.template?.id,
       shopName: _shopController.text.trim(),
+      shopMobile: _shopMobileController.text.trim().isEmpty ? null : _shopMobileController.text.trim(),
       productType: _productType,
       saleType: _saleType,
-      quantity: int.parse(_quantityController.text),
+      quantity: legacyQty,
+      morningQuantity: morningQty,
+      eveningQuantity: eveningQty,
       ratePerUnit: double.parse(_rateController.text),
       costPerUnit: double.parse(_costController.text),
       deliverySlot: _deliverySlot,
@@ -230,6 +252,17 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 10),
+                TextFormField(
+                  controller: _shopMobileController,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    labelText: 'Shop Mobile',
+                    hintText: 'Optional – for tap-to-call',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 DropdownButtonFormField<ProductType>(
                   initialValue: _productType,
                   decoration: const InputDecoration(labelText: 'Product'),
@@ -248,15 +281,32 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
                   onChanged: (v) => setState(() => _saleType = v!),
                 ),
                 const SizedBox(height: 10),
-                TextFormField(
-                  controller: _quantityController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Quantity'),
-                  validator: (v) {
-                    final n = int.tryParse(v ?? '');
-                    if (n == null || n <= 0) return 'Enter valid quantity';
-                    return null;
-                  },
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _morningQtyController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        decoration: const InputDecoration(
+                          labelText: 'Morning Qty',
+                          prefixIcon: Icon(Icons.wb_sunny_outlined, size: 18),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _eveningQtyController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        decoration: const InputDecoration(
+                          labelText: 'Evening Qty',
+                          prefixIcon: Icon(Icons.nights_stay_outlined, size: 18),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10),
                 TextFormField(

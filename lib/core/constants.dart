@@ -79,6 +79,7 @@ const String salesTable = 'sales_entries';
 const String shopsTable = 'shops';
 const String supplyTemplatesTable = 'supply_templates';
 const String appSettingsTable = 'app_settings';
+const String dispatchLeavesTable = 'dispatch_leaves';
 const String settingLastTemplateGenerationDate = 'last_template_generation_date';
 
 // Payment Status

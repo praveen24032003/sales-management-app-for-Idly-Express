@@ -4,6 +4,7 @@ import '../core/constants.dart';
 import '../models/sales_entry_model.dart';
 import '../models/expense_model.dart';
 import '../models/supply_template_model.dart';
+import '../models/dispatch_leave_model.dart';
 
 /// Database service for offline-first data storage
 class DatabaseService {
@@ -24,7 +25,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -95,7 +96,27 @@ class DatabaseService {
       await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN start_date TEXT');
       await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN end_date TEXT');
     }
-  }
+
+    if (oldVersion < 7) {
+      // Add mobile column to shops
+      await db.execute('ALTER TABLE $shopsTable ADD COLUMN mobile TEXT');
+      // Add customer_mobile to sales_entries
+      await db.execute('ALTER TABLE $salesTable ADD COLUMN customer_mobile TEXT');
+      // Add morning/evening split to supply templates
+      await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN morning_quantity INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN evening_quantity INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN shop_mobile TEXT');
+      // Create dispatch_leaves table
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $dispatchLeavesTable (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          template_id INTEGER NOT NULL,
+          leave_date TEXT NOT NULL,
+          delivery_slot INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+    }
 
   Future<void> _createDB(Database db, int version) async {
     // Sales entries table
@@ -119,6 +140,7 @@ class DatabaseService {
         paymentStatus INTEGER NOT NULL,
         paidAmount REAL NOT NULL,
         notes TEXT,
+        customer_mobile TEXT,
         firestore_id TEXT,
         last_modified INTEGER NOT NULL DEFAULT 0,
         is_synced INTEGER NOT NULL DEFAULT 0
@@ -130,6 +152,7 @@ class DatabaseService {
       CREATE TABLE $shopsTable (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE NOT NULL,
+        mobile TEXT,
         lastUsed TEXT NOT NULL
       )
     ''');
@@ -164,6 +187,9 @@ class DatabaseService {
         active_weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7',
         start_date TEXT,
         end_date TEXT,
+        morning_quantity INTEGER NOT NULL DEFAULT 0,
+        evening_quantity INTEGER NOT NULL DEFAULT 0,
+        shop_mobile TEXT,
         is_active INTEGER NOT NULL DEFAULT 1
       )
     ''');
@@ -172,6 +198,16 @@ class DatabaseService {
       CREATE TABLE $appSettingsTable (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE $dispatchLeavesTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id INTEGER NOT NULL,
+        leave_date TEXT NOT NULL,
+        delivery_slot INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
       )
     ''');
   }
@@ -421,14 +457,53 @@ class DatabaseService {
 
   // ==================== SHOP SUGGESTIONS ====================
 
-  /// Save shop name for auto-suggestions
+  /// Save shop name for auto-suggestions (preserves mobile if already stored)
   Future<void> _saveShopName(String name) async {
     final db = await database;
-    await db.insert(
-      shopsTable,
-      {'name': name, 'lastUsed': DateTime.now().toIso8601String()},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    final existing = await db.query(shopsTable, where: 'name = ?', whereArgs: [name], limit: 1);
+    if (existing.isNotEmpty) {
+      await db.update(
+        shopsTable,
+        {'lastUsed': DateTime.now().toIso8601String()},
+        where: 'name = ?',
+        whereArgs: [name],
+      );
+    } else {
+      await db.insert(shopsTable, {'name': name, 'lastUsed': DateTime.now().toIso8601String()});
+    }
+  }
+
+  Future<void> updateShopMobile(String name, String mobile) async {
+    final db = await database;
+    await db.update(shopsTable, {'mobile': mobile}, where: 'name = ?', whereArgs: [name]);
+  }
+
+  Future<String?> getShopMobile(String name) async {
+    final db = await database;
+    final result = await db.query(shopsTable, columns: ['mobile'], where: 'name = ?', whereArgs: [name], limit: 1);
+    if (result.isEmpty) return null;
+    return result.first['mobile'] as String?;
+  }
+
+  Future<List<Map<String, String?>>> getAllShopsWithMobile() async {
+    final db = await database;
+    final result = await db.query(shopsTable, columns: ['name', 'mobile'], orderBy: 'lastUsed DESC');
+    return result.map((r) => {'name': r['name'] as String?, 'mobile': r['mobile'] as String?}).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getRecentExternalCustomers() async {
+    final db = await database;
+    final result = await db.rawQuery('''
+      SELECT shopName as name, customer_mobile as mobile, MAX(date) as lastUsed
+      FROM $salesTable
+      WHERE order_type = ${OrderType.externalOrder.index}
+        AND customer_mobile IS NOT NULL
+        AND customer_mobile != ''
+      GROUP BY shopName, customer_mobile
+      ORDER BY lastUsed DESC
+      LIMIT 30
+    ''');
+    return result;
   }
 
   /// Get shop suggestions based on query
@@ -643,5 +718,66 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  // ==================== DISPATCH LEAVES ====================
+
+  Future<bool> hasDispatchLeave(int templateId, DateTime date, DeliverySlot slot) async {
+    final db = await database;
+    final dateStr = date.toIso8601String().split('T').first;
+    final result = await db.query(
+      dispatchLeavesTable,
+      columns: ['id'],
+      where: 'template_id = ? AND leave_date = ? AND delivery_slot = ?',
+      whereArgs: [templateId, dateStr, slot.index],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<void> insertDispatchLeave(DispatchLeave leave) async {
+    final db = await database;
+    await db.insert(dispatchLeavesTable, leave.toMap(), conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  Future<void> deleteDispatchLeave(int templateId, DateTime date, DeliverySlot slot) async {
+    final db = await database;
+    final dateStr = date.toIso8601String().split('T').first;
+    await db.delete(
+      dispatchLeavesTable,
+      where: 'template_id = ? AND leave_date = ? AND delivery_slot = ?',
+      whereArgs: [templateId, dateStr, slot.index],
+    );
+  }
+
+  Future<Set<String>> getLeaveKeys(List<int> templateIds, DateTime from, DateTime to) async {
+    final db = await database;
+    final fromStr = from.toIso8601String().split('T').first;
+    final toStr = to.toIso8601String().split('T').first;
+    final placeholders = List.filled(templateIds.length, '?').join(',');
+    final result = await db.rawQuery(
+      'SELECT template_id, leave_date, delivery_slot FROM $dispatchLeavesTable '
+      'WHERE template_id IN ($placeholders) AND leave_date >= ? AND leave_date <= ?',
+      [...templateIds, fromStr, toStr],
+    );
+    return result.map((r) => '${r['template_id']}_${r['leave_date']}_${r['delivery_slot']}').toSet();
+  }
+
+  Future<bool> hasDispatchEntry(int templateId, DateTime date, DeliverySlot slot) async {
+    final db = await database;
+    final start = DateTime(date.year, date.month, date.day).toIso8601String();
+    final end = DateTime(date.year, date.month, date.day + 1).toIso8601String();
+    final result = await db.rawQuery('''
+      SELECT id FROM $salesTable
+      WHERE order_type = ${OrderType.everydaySupply.index}
+        AND delivery_slot = ${slot.index}
+        AND date >= ? AND date < ?
+        AND id IN (
+          SELECT id FROM $salesTable WHERE shopName = (
+            SELECT shop_name FROM $supplyTemplatesTable WHERE id = ?
+          )
+        )
+    ''', [start, end, templateId]);
+    return result.isNotEmpty;
   }
 }

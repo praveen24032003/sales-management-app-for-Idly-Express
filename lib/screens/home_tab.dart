@@ -11,6 +11,8 @@ import '../widgets/soft_card.dart';
 import '../widgets/dispatch_tile.dart';
 import '../widgets/prep_reminder_tile.dart';
 
+import '../widgets/time_greeting_hero.dart';
+
 /// Home tab - slim dashboard view
 class HomeTab extends StatefulWidget {
   final Function(int) onSwitchTab;
@@ -56,55 +58,37 @@ class _HomeTabState extends State<HomeTab> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                // ─── Cream AppBar ──────────────────────────────────────
-                SliverAppBar(
-                  expandedHeight: 80,
-                  floating: false,
-                  pinned: true,
-                  backgroundColor: AppColors.bgLight,
-                  flexibleSpace: FlexibleSpaceBar(
-                    collapseMode: CollapseMode.pin,
-                    background: SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.lg,
-                          vertical: AppSpacing.md,
+                // ─── Cream AppBar removed — using TimeGreetingHero instead ───
+                // ─── Animated Time-of-Day Hero ─────────────────────
+                SliverToBoxAdapter(
+                  child: TimeGreetingHero(),
+                ),
+                // ─── Quick Actions ─────────────────────────────────
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _QuickActionCard(
+                            icon: Icons.add_shopping_cart_rounded,
+                            label: 'External Order',
+                            color: Theme.of(context).colorScheme.primary,
+                            onTap: () => Navigator.of(context).pushNamed('/external-order'),
+                          ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _greeting(),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    color: AppColors.textSecondaryLight,
-                                  ),
-                            ),
-                            Text(
-                              'Idly Express',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _QuickActionCard(
+                            icon: Icons.local_shipping_rounded,
+                            label: 'Dispatch Plan',
+                            color: const Color(0xFF059669),
+                            onTap: () => Navigator.of(context).pushNamed('/dispatch-planner'),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                  actions: [
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      child: Center(
-                        child: IconButton(
-                          icon: const Icon(Icons.refresh_rounded),
-                          onPressed: () {
-                            provider.loadData();
-                            expProv.loadExpenses();
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
                 // ─── Content ───────────────────────────────────────────
                 SliverPadding(
@@ -290,6 +274,60 @@ class _HomeTabState extends State<HomeTab> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _QuickActionCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(isDark ? 0.18 : 0.10),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

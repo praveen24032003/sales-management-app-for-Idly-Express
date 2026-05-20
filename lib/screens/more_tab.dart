@@ -10,8 +10,10 @@ import 'expenses_screen.dart';
 import 'shop_balances_screen.dart';
 import 'profit_screen.dart';
 import 'supply_templates_screen.dart';
+import 'dispatch_planner_screen.dart';
+import 'contacts_screen.dart';
 
-/// More tab - settings, navigation, and data management
+/// More tab- settings, navigation, and data management
 class MoreTab extends StatelessWidget {
   const MoreTab({super.key});
 
@@ -93,6 +95,22 @@ class MoreTab extends StatelessWidget {
                       ),
                     );
                   },
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              SoftCard(
+                child: _MenuRow(
+                  icon: Icons.calendar_month_rounded,
+                  label: 'Dispatch Planner',
+                  onTap: () => Navigator.of(context).pushNamed('/dispatch-planner'),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              SoftCard(
+                child: _MenuRow(
+                  icon: Icons.contacts_rounded,
+                  label: 'Contacts',
+                  onTap: () => Navigator.of(context).pushNamed('/contacts'),
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),

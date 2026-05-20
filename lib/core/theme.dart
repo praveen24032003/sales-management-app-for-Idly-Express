@@ -54,6 +54,69 @@ class AppSpacing {
   static const double xxl = 32.0;
 }
 
+/// Animation constants for consistent, calm UX
+class AppAnimations {
+  static const Duration fast = Duration(milliseconds: 200);
+  static const Duration medium = Duration(milliseconds: 350);
+  static const Duration slow = Duration(milliseconds: 550);
+  static const Duration xslow = Duration(milliseconds: 800);
+  static const Duration float = Duration(milliseconds: 3000);
+  static const Duration glow = Duration(milliseconds: 2000);
+
+  static const Curve enter = Curves.easeOut;
+  static const Curve exit = Curves.easeIn;
+  static const Curve spring = Curves.easeOutBack;
+}
+
+/// Gradient palettes for the time-of-day hero
+class TimeGradients {
+  // Morning 5–11
+  static const List<Color> morningLight = [
+    Color(0xFFFF9A56), Color(0xFFFFC47A), Color(0xFFFFE4A6),
+  ];
+  static const List<Color> morningDark = [
+    Color(0xFF7A3A10), Color(0xFFB05C20), Color(0xFFD4844A),
+  ];
+
+  // Afternoon 12–16
+  static const List<Color> afternoonLight = [
+    Color(0xFF0EA5E9), Color(0xFF38BDF8), Color(0xFF7DD3FC),
+  ];
+  static const List<Color> afternoonDark = [
+    Color(0xFF0C2B3D), Color(0xFF0F4B6E), Color(0xFF1565A0),
+  ];
+
+  // Evening 17–20
+  static const List<Color> eveningLight = [
+    Color(0xFFEC4899), Color(0xFFF97316), Color(0xFFFBBF24),
+  ];
+  static const List<Color> eveningDark = [
+    Color(0xFF4A1232), Color(0xFF6B2020), Color(0xFF8B4C10),
+  ];
+
+  // Night 21–4
+  static const List<Color> nightLight = [
+    Color(0xFF1E293B), Color(0xFF0F172A), Color(0xFF020617),
+  ];
+  static const List<Color> nightDark = [
+    Color(0xFF0D1117), Color(0xFF0A0F1A), Color(0xFF04060D),
+  ];
+
+  static List<Color> getGradient(int hour, bool isDark) {
+    if (hour >= 5 && hour < 12) return isDark ? morningDark : morningLight;
+    if (hour >= 12 && hour < 17) return isDark ? afternoonDark : afternoonLight;
+    if (hour >= 17 && hour < 21) return isDark ? eveningDark : eveningLight;
+    return isDark ? nightDark : nightLight;
+  }
+
+  static Color getSunMoonColor(int hour) {
+    if (hour >= 5 && hour < 12) return const Color(0xFFFFD369);
+    if (hour >= 12 && hour < 17) return const Color(0xFFFFF9C4);
+    if (hour >= 17 && hour < 21) return const Color(0xFFFF7043);
+    return const Color(0xFFE8EAF6);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Light Theme
 // ─────────────────────────────────────────────────────────────────────────────

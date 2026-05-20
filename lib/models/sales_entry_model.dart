@@ -16,6 +16,7 @@ class SalesEntry {
   final double costPerUnit;
   final PaymentStatus paymentStatus;
   final double? paidAmount;
+  final String? customerMobile;
   final String? notes;
   final String? firestoreId;
   final int lastModified;
@@ -36,6 +37,7 @@ class SalesEntry {
     required this.costPerUnit,
     this.paymentStatus = PaymentStatus.paid,
     double? paidAmount,
+    this.customerMobile,
     this.notes,
     this.firestoreId,
     this.lastModified = 0,
@@ -70,6 +72,7 @@ class SalesEntry {
       'profit': profit,
       'paymentStatus': paymentStatus.index,
       'paidAmount': paidAmount,
+      'customer_mobile': customerMobile,
       'notes': notes,
       'firestore_id': firestoreId,
       'last_modified': lastModified,
@@ -96,6 +99,7 @@ class SalesEntry {
       paidAmount: map['paidAmount'] != null 
           ? (map['paidAmount'] as num).toDouble() 
           : (map['quantity'] as int) * (map['ratePerUnit'] as num).toDouble(),
+      customerMobile: map['customer_mobile'] as String?,
       notes: map['notes'] as String?,
       firestoreId: map['firestore_id'] as String?,
       lastModified: map['last_modified'] as int? ?? 0,
@@ -119,6 +123,7 @@ class SalesEntry {
     double? costPerUnit,
     PaymentStatus? paymentStatus,
     double? paidAmount,
+    String? customerMobile,
     String? notes,
     String? firestoreId,
     int? lastModified,
@@ -139,6 +144,7 @@ class SalesEntry {
       costPerUnit: costPerUnit ?? this.costPerUnit,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paidAmount: paidAmount ?? this.paidAmount,
+      customerMobile: customerMobile ?? this.customerMobile,
       notes: notes ?? this.notes,
       firestoreId: firestoreId ?? this.firestoreId,
       lastModified: lastModified ?? this.lastModified,

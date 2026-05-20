@@ -7,6 +7,9 @@ import 'providers/theme_controller.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/splash_screen.dart';
 import 'screens/add_entry_screen.dart';
+import 'screens/external_order_form.dart';
+import 'screens/dispatch_planner_screen.dart';
+import 'screens/contacts_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +39,9 @@ class IdlyExpressApp extends StatelessWidget {
             home: const SplashScreen(),
             routes: {
               '/add-entry': (context) => const AddEntryScreen(),
+              '/external-order': (context) => const ExternalOrderForm(),
+              '/dispatch-planner': (context) => const DispatchPlannerScreen(),
+              '/contacts': (context) => const ContactsScreen(),
             },
           );
         },
