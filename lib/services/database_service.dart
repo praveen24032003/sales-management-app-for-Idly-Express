@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import '../core/constants.dart';
 import '../models/sales_entry_model.dart';
 import '../models/expense_model.dart';
+import '../models/supply_template_model.dart';
 
 /// Database service for offline-first data storage
 class DatabaseService {
@@ -23,7 +24,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -34,7 +35,11 @@ class DatabaseService {
       // For development simplicity, we'll drop and recreate for v1->v2
       await db.execute('DROP TABLE IF EXISTS $salesTable');
       await db.execute('DROP TABLE IF EXISTS $shopsTable');
+      await db.execute('DROP TABLE IF EXISTS expenses');
+      await db.execute('DROP TABLE IF EXISTS $supplyTemplatesTable');
+      await db.execute('DROP TABLE IF EXISTS $appSettingsTable');
       await _createDB(db, newVersion);
+      return;
     }
     
     if (oldVersion < 3) {
@@ -49,6 +54,47 @@ class DatabaseService {
       await db.execute('ALTER TABLE expenses ADD COLUMN last_modified INTEGER NOT NULL DEFAULT 0');
       await db.execute('ALTER TABLE expenses ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0');
     }
+
+    if (oldVersion < 4) {
+      await db.execute('ALTER TABLE $salesTable ADD COLUMN order_type INTEGER NOT NULL DEFAULT 1');
+      await db.execute('ALTER TABLE $salesTable ADD COLUMN delivery_slot INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE $salesTable ADD COLUMN delivery_time TEXT');
+      await db.execute('ALTER TABLE $salesTable ADD COLUMN prep_lead_days INTEGER NOT NULL DEFAULT 1');
+    }
+
+    if (oldVersion < 5) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $supplyTemplatesTable (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          shop_name TEXT NOT NULL,
+          product_type INTEGER NOT NULL,
+          sale_type INTEGER NOT NULL,
+          quantity INTEGER NOT NULL,
+          rate_per_unit REAL NOT NULL,
+          cost_per_unit REAL NOT NULL,
+          delivery_slot INTEGER NOT NULL DEFAULT 0,
+          delivery_time TEXT,
+          prep_lead_days INTEGER NOT NULL DEFAULT 1,
+          active_weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7',
+          start_date TEXT,
+          end_date TEXT,
+          is_active INTEGER NOT NULL DEFAULT 1
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $appSettingsTable (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        )
+      ''');
+    }
+
+    if (oldVersion >= 5 && oldVersion < 6) {
+      await db.execute("ALTER TABLE $supplyTemplatesTable ADD COLUMN active_weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7'");
+      await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN start_date TEXT');
+      await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN end_date TEXT');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -58,6 +104,10 @@ class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT NOT NULL,
         shopName TEXT NOT NULL,
+        order_type INTEGER NOT NULL DEFAULT 1,
+        delivery_slot INTEGER NOT NULL DEFAULT 0,
+        delivery_time TEXT,
+        prep_lead_days INTEGER NOT NULL DEFAULT 1,
         productType INTEGER NOT NULL,
         saleType INTEGER NOT NULL,
         ratePerUnit REAL NOT NULL,
@@ -97,6 +147,151 @@ class DatabaseService {
         is_synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
+
+    // Recurring everyday supply templates
+    await db.execute('''
+      CREATE TABLE $supplyTemplatesTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop_name TEXT NOT NULL,
+        product_type INTEGER NOT NULL,
+        sale_type INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        rate_per_unit REAL NOT NULL,
+        cost_per_unit REAL NOT NULL,
+        delivery_slot INTEGER NOT NULL DEFAULT 0,
+        delivery_time TEXT,
+        prep_lead_days INTEGER NOT NULL DEFAULT 1,
+        active_weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7',
+        start_date TEXT,
+        end_date TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE $appSettingsTable (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+  }
+
+  // ==================== RECURRING TEMPLATES ====================
+
+  Future<List<SupplyTemplate>> getAllSupplyTemplates() async {
+    final db = await database;
+    final result = await db.query(supplyTemplatesTable, orderBy: 'shop_name ASC');
+    return result.map((map) => SupplyTemplate.fromMap(map)).toList();
+  }
+
+  Future<int> insertSupplyTemplate(SupplyTemplate template) async {
+    final db = await database;
+    await _saveShopName(template.shopName);
+    return db.insert(supplyTemplatesTable, template.toMap());
+  }
+
+  Future<int> updateSupplyTemplate(SupplyTemplate template) async {
+    final db = await database;
+    await _saveShopName(template.shopName);
+    return db.update(
+      supplyTemplatesTable,
+      template.toMap(),
+      where: 'id = ?',
+      whereArgs: [template.id],
+    );
+  }
+
+  Future<int> deleteSupplyTemplate(int id) async {
+    final db = await database;
+    return db.delete(supplyTemplatesTable, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<String?> _getSetting(String key) async {
+    final db = await database;
+    final result = await db.query(
+      appSettingsTable,
+      where: 'key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    if (result.isEmpty) return null;
+    return result.first['value'] as String;
+  }
+
+  Future<void> _setSetting(String key, String value) async {
+    final db = await database;
+    await db.insert(
+      appSettingsTable,
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<bool> _hasEverydayOrderForTemplateToday(SupplyTemplate template) async {
+    final db = await database;
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day).toIso8601String();
+    final end = DateTime(now.year, now.month, now.day + 1).toIso8601String();
+
+    final result = await db.query(
+      salesTable,
+      columns: ['id'],
+      where: 'shopName = ? AND productType = ? AND saleType = ? AND delivery_slot = ? AND order_type = ? AND date >= ? AND date < ?',
+      whereArgs: [
+        template.shopName,
+        template.productType.index,
+        template.saleType.index,
+        template.deliverySlot.index,
+        OrderType.everydaySupply.index,
+        start,
+        end,
+      ],
+      limit: 1,
+    );
+
+    return result.isNotEmpty;
+  }
+
+  Future<int> autoCreateTodaySupplyOrdersIfNeeded() async {
+    final now = DateTime.now();
+    final todayKey = now.toIso8601String().split('T').first;
+    final lastGenerated = await _getSetting(settingLastTemplateGenerationDate);
+    if (lastGenerated == todayKey) {
+      return 0;
+    }
+
+    final templates = (await getAllSupplyTemplates())
+        .where((t) => t.isActiveOnDate(now))
+        .toList();
+
+    int created = 0;
+    for (final template in templates) {
+      final alreadyExists = await _hasEverydayOrderForTemplateToday(template);
+      if (alreadyExists) continue;
+
+      final entry = SalesEntry(
+        date: DateTime.now(),
+        shopName: template.shopName,
+        orderType: OrderType.everydaySupply,
+        deliverySlot: template.deliverySlot,
+        deliveryTime: template.deliveryTime,
+        prepLeadDays: template.prepLeadDays,
+        productType: template.productType,
+        saleType: template.saleType,
+        ratePerUnit: template.ratePerUnit,
+        quantity: template.quantity,
+        costPerUnit: template.costPerUnit,
+        paymentStatus: PaymentStatus.pending,
+        paidAmount: 0,
+        notes: 'Auto-created from recurring template',
+      );
+
+      await insertSalesEntry(entry);
+      created++;
+    }
+
+    await _setSetting(settingLastTemplateGenerationDate, todayKey);
+    return created;
   }
 
   // ==================== SALES CRUD ====================
@@ -355,25 +550,45 @@ class DatabaseService {
         final parts = line.split(',');
         if (parts.length < 10) continue;
 
+        final hasOrderColumns = parts.length >= 18;
+
         final entry = SalesEntry(
           date: DateTime.parse(parts[0]),
           shopName: parts[1],
+          orderType: hasOrderColumns
+              ? OrderType.values.firstWhere(
+                  (o) => o.displayName == parts[2],
+                  orElse: () => OrderType.externalOrder,
+                )
+              : OrderType.externalOrder,
+          deliverySlot: hasOrderColumns
+              ? DeliverySlot.values.firstWhere(
+                  (d) => d.displayName == parts[3],
+                  orElse: () => DeliverySlot.morning,
+                )
+              : DeliverySlot.morning,
+          deliveryTime: hasOrderColumns && parts[4].trim().isNotEmpty ? parts[4] : null,
+          prepLeadDays: hasOrderColumns ? int.tryParse(parts[5]) ?? 1 : 1,
           productType: ProductType.values.firstWhere(
-            (p) => p.displayName == parts[2],
+            (p) => p.displayName == (hasOrderColumns ? parts[6] : parts[2]),
             orElse: () => ProductType.idly,
           ),
           saleType: SaleType.values.firstWhere(
-            (s) => s.displayName == parts[3],
+            (s) => s.displayName == (hasOrderColumns ? parts[7] : parts[3]),
             orElse: () => SaleType.retail,
           ),
-          ratePerUnit: double.parse(parts[4]),
-          quantity: int.parse(parts[5]),
-          costPerUnit: double.parse(parts[6]),
-          paymentStatus: parts.length > 10 
-              ? PaymentStatus.values.firstWhere((e) => e.displayName == parts[10], orElse: () => PaymentStatus.paid)
+          ratePerUnit: double.parse(hasOrderColumns ? parts[8] : parts[4]),
+          quantity: int.parse(hasOrderColumns ? parts[9] : parts[5]),
+          costPerUnit: double.parse(hasOrderColumns ? parts[10] : parts[6]),
+          paymentStatus: parts.length > (hasOrderColumns ? 14 : 10)
+              ? PaymentStatus.values.firstWhere((e) => e.displayName == (hasOrderColumns ? parts[14] : parts[10]), orElse: () => PaymentStatus.paid)
               : PaymentStatus.paid,
-          paidAmount: parts.length > 11 ? double.tryParse(parts[11]) : null,
-          notes: parts.length > 13 ? parts[13] : (parts.length > 10 && parts.length < 13 ? parts[10] : null), // Handle old format notes
+          paidAmount: parts.length > (hasOrderColumns ? 15 : 11)
+              ? double.tryParse(hasOrderColumns ? parts[15] : parts[11])
+              : null,
+          notes: hasOrderColumns
+              ? (parts.length > 17 ? parts[17] : null)
+              : (parts.length > 13 ? parts[13] : (parts.length > 10 && parts.length < 13 ? parts[10] : null)),
         );
 
         await insertSalesEntry(entry);
@@ -392,6 +607,8 @@ class DatabaseService {
     await db.delete(salesTable);
     await db.delete(shopsTable);
     await db.delete('expenses');
+    await db.delete(supplyTemplatesTable);
+    await db.delete(appSettingsTable);
   }
 
   // ==================== SYNC HELPERS ====================

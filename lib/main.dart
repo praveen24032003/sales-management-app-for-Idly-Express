@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import 'core/theme.dart';
 import 'providers/sales_provider.dart';
 import 'providers/expense_provider.dart';
+import 'providers/theme_controller.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/splash_screen.dart';
+import 'screens/add_entry_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,14 +23,22 @@ class IdlyExpressApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider<SalesProvider>(create: (context) => SalesProvider()),
         ChangeNotifierProvider<ExpenseProvider>(create: (context) => ExpenseProvider()),
+        ChangeNotifierProvider<ThemeController>(create: (context) => ThemeController()),
       ],
-      child: MaterialApp(
-        title: 'Idly Express',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
-        home: const DashboardScreen(),
+      child: Consumer<ThemeController>(
+        builder: (context, themeController, _) {
+          return MaterialApp(
+            title: 'Idly Express',
+            debugShowCheckedModeBanner: false,
+            theme: lightTheme,
+            darkTheme: darkTheme,
+            themeMode: themeController.mode,
+            home: const SplashScreen(),
+            routes: {
+              '/add-entry': (context) => const AddEntryScreen(),
+            },
+          );
+        },
       ),
     );
   }

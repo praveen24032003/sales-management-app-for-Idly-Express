@@ -1,4 +1,4 @@
-/// Business constants for Idly Express app
+// Business constants for Idly Express app
 
 // Product types
 enum ProductType {
@@ -33,6 +33,36 @@ enum SaleType {
   }
 }
 
+// Order category to separate regular daily supply and one-off orders
+enum OrderType {
+  everydaySupply,
+  externalOrder;
+
+  String get displayName {
+    switch (this) {
+      case OrderType.everydaySupply:
+        return 'Everyday Supply';
+      case OrderType.externalOrder:
+        return 'External Order';
+    }
+  }
+}
+
+// Delivery slot for production planning
+enum DeliverySlot {
+  morning,
+  evening;
+
+  String get displayName {
+    switch (this) {
+      case DeliverySlot.morning:
+        return 'Morning';
+      case DeliverySlot.evening:
+        return 'Evening';
+    }
+  }
+}
+
 // Idly rate options (dropdown) - only for Idly product
 const List<double> idlyRateOptions = [3.0, 3.5, 4.0, 4.5, 5.0];
 
@@ -47,6 +77,9 @@ const String currencySymbol = '₹';
 const String dbName = 'idly_express.db';
 const String salesTable = 'sales_entries';
 const String shopsTable = 'shops';
+const String supplyTemplatesTable = 'supply_templates';
+const String appSettingsTable = 'app_settings';
+const String settingLastTemplateGenerationDate = 'last_template_generation_date';
 
 // Payment Status
 enum PaymentStatus {

@@ -6,6 +6,8 @@ import '../models/expense_model.dart';
 import '../providers/expense_provider.dart';
 import '../widgets/custom_dropdown.dart';
 import '../widgets/custom_textfield.dart';
+import '../core/theme.dart';
+import '../widgets/soft_card.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -72,7 +74,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                // Month Summary
               Container(
                 padding: const EdgeInsets.all(16),
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -90,32 +92,34 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               Expanded(
                 child: ListView.separated(
                   itemCount: provider.monthExpenses.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final expense = provider.monthExpenses[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.red.withOpacity(0.1),
-                        child: Icon(_getCategoryIcon(expense.category), color: Colors.red),
-                      ),
-                      title: Text(expense.category.displayName),
-                      subtitle: Text(
-                        '${DateFormat('dd MMM').format(expense.date)} • ${expense.notes ?? ''}',
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                           Text(
-                            currencyFormat.format(expense.amount),
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                        return SoftCard(
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: context.lossColor.withValues(alpha: 0.1),
+                              child: Icon(_getCategoryIcon(expense.category), color: context.lossColor),
+                            ),
+                            title: Text(expense.category.displayName),
+                            subtitle: Text(
+                              '${DateFormat('dd MMM').format(expense.date)} • ${expense.notes ?? ''}',
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                 Text(
+                                  currencyFormat.format(expense.amount),
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.grey, size: 20),
+                                  onPressed: () => _confirmDelete(context, expense.id!),
+                                ),
+                              ],
+                            ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.grey, size: 20),
-                            onPressed: () => _confirmDelete(context, expense.id!),
-                          ),
-                        ],
-                      ),
-                    );
+                        );
                   },
                 ),
               ),

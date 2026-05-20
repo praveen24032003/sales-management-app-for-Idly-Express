@@ -163,9 +163,7 @@ class ProfitScreen extends StatelessWidget {
     final margin = (provider.yearTotalProfit / provider.yearTotalSales) * 100;
     return '${margin.toStringAsFixed(1)}%';
   }
-
-  Widget _buildComparisonCard(
-      BuildContext context, SalesProvider provider, NumberFormat format) {
+  Widget _buildComparisonCard(BuildContext context, SalesProvider provider, NumberFormat format) {
     final wholesaleProfit = provider.wholesaleProfit;
     final retailProfit = provider.retailProfit;
     final total = wholesaleProfit + retailProfit;
@@ -181,12 +179,12 @@ class ProfitScreen extends StatelessWidget {
                   child: Column(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                       padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.blue.withValues(alpha: 0.1),
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(Icons.warehouse, color: Colors.blue, size: 32),
+                       child: Icon(Icons.warehouse, color: Theme.of(context).colorScheme.primary, size: 32),
                       ),
                       const SizedBox(height: 8),
                       const Text('Wholesale'),
@@ -221,11 +219,11 @@ class ProfitScreen extends StatelessWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
+                         decoration: BoxDecoration(
+                           color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(Icons.store, color: Colors.orange, size: 32),
+                         child: Icon(Icons.store, color: Theme.of(context).colorScheme.secondary, size: 32),
                       ),
                       const SizedBox(height: 8),
                       const Text('Retail'),
@@ -351,7 +349,7 @@ class ProfitScreen extends StatelessWidget {
                 if (wholesaleProfit > 0)
                   PieChartSectionData(
                     value: wholesaleProfit,
-                    color: Colors.blue,
+                      color: Theme.of(context).colorScheme.primary,
                     title: 'W',
                     radius: 50,
                     titleStyle: const TextStyle(
@@ -362,7 +360,7 @@ class ProfitScreen extends StatelessWidget {
                 if (retailProfit > 0)
                   PieChartSectionData(
                     value: retailProfit,
-                    color: Colors.orange,
+                      color: Theme.of(context).colorScheme.secondary,
                     title: 'R',
                     radius: 50,
                     titleStyle: const TextStyle(

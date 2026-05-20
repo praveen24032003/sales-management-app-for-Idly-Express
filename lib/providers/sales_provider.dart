@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../core/constants.dart';
 import '../models/sales_entry_model.dart';
+import '../models/supply_template_model.dart';
 import '../services/database_service.dart';
 import '../services/sync_service.dart';
 
@@ -14,6 +15,7 @@ class SalesProvider extends ChangeNotifier {
   List<SalesEntry> _todayEntries = [];
   List<SalesEntry> _monthEntries = [];
   List<SalesEntry> _yearEntries = [];
+  List<SupplyTemplate> _supplyTemplates = [];
   List<String> _shopList = [];
   bool _isLoading = false;
   String? _error;
@@ -23,9 +25,44 @@ class SalesProvider extends ChangeNotifier {
   List<SalesEntry> get todayEntries => _todayEntries;
   List<SalesEntry> get monthEntries => _monthEntries;
   List<SalesEntry> get yearEntries => _yearEntries;
+  List<SupplyTemplate> get supplyTemplates => _supplyTemplates;
   List<String> get shopList => _shopList;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
+
+  bool _isDateWithinDays(DateTime date, int daysFromToday) {
+    final today = _dateOnly(DateTime.now());
+    final target = today.add(Duration(days: daysFromToday));
+    return _dateOnly(date) == target;
+  }
+
+  List<SalesEntry> get todayEverydaySupplyEntries =>
+      _todayEntries.where((e) => e.orderType == OrderType.everydaySupply).toList();
+
+  List<SalesEntry> get todayExternalOrders =>
+      _todayEntries.where((e) => e.orderType == OrderType.externalOrder).toList();
+
+  List<SalesEntry> get prepReminderEntries {
+    final today = _dateOnly(DateTime.now());
+    return _allEntries.where((entry) {
+      final dispatchDate = _dateOnly(entry.date);
+      final daysUntilDispatch = dispatchDate.difference(today).inDays;
+      return daysUntilDispatch >= 1 &&
+          daysUntilDispatch <= 2 &&
+          daysUntilDispatch <= entry.prepLeadDays;
+    }).toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+  }
+
+  int get prepQuantityForTomorrow => _allEntries
+      .where((e) => _isDateWithinDays(e.date, 1) && e.prepLeadDays >= 1)
+      .fold<int>(0, (sum, e) => sum + e.quantity);
+
+  int get prepQuantityForDayAfterTomorrow => _allEntries
+      .where((e) => _isDateWithinDays(e.date, 2) && e.prepLeadDays >= 2)
+      .fold<int>(0, (sum, e) => sum + e.quantity);
 
   // ==================== DASHBOARD STATS ====================
 
@@ -113,10 +150,12 @@ class SalesProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await _db.autoCreateTodaySupplyOrdersIfNeeded();
       _allEntries = await _db.getAllEntries();
       _todayEntries = await _db.getTodayEntries();
       _monthEntries = await _db.getCurrentMonthEntries();
       _yearEntries = await _db.getCurrentYearEntries();
+      _supplyTemplates = await _db.getAllSupplyTemplates();
       _shopList = await _db.getAllShops();
     } catch (e) {
       _error = 'Failed to load data: $e';
@@ -223,6 +262,44 @@ class SalesProvider extends ChangeNotifier {
   Future<void> deleteAllData() async {
     await _db.deleteAllData();
     await loadData();
+  }
+
+  // ==================== RECURRING TEMPLATES ====================
+
+  Future<bool> addSupplyTemplate(SupplyTemplate template) async {
+    try {
+      await _db.insertSupplyTemplate(template);
+      await loadData();
+      return true;
+    } catch (e) {
+      _error = 'Failed to add template: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateSupplyTemplate(SupplyTemplate template) async {
+    try {
+      await _db.updateSupplyTemplate(template);
+      await loadData();
+      return true;
+    } catch (e) {
+      _error = 'Failed to update template: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteSupplyTemplate(int id) async {
+    try {
+      await _db.deleteSupplyTemplate(id);
+      await loadData();
+      return true;
+    } catch (e) {
+      _error = 'Failed to delete template: $e';
+      notifyListeners();
+      return false;
+    }
   }
 
 

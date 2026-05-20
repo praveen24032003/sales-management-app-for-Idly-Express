@@ -7,6 +7,7 @@ import '../models/sales_entry_model.dart';
 import '../providers/sales_provider.dart';
 import '../widgets/custom_dropdown.dart';
 import '../widgets/custom_textfield.dart';
+import '../widgets/soft_card.dart';
 
 /// Add/Edit Sales Entry Screen
 class AddEntryScreen extends StatefulWidget {
@@ -24,6 +25,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   // Form controllers
   late DateTime _selectedDate;
   late TextEditingController _shopNameController;
+  late OrderType _selectedOrderType;
+  late DeliverySlot _selectedDeliverySlot;
+  TimeOfDay? _selectedDeliveryTime;
+  late int _prepLeadDays;
   late ProductType _selectedProduct;
   late SaleType _selectedSaleType;
   late double _selectedRate;
@@ -35,10 +40,6 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   // Payment
   late PaymentStatus _paymentStatus;
   late TextEditingController _paidAmountController;
-
-  // Shop suggestions
-  List<String> _shopSuggestions = [];
-  bool _showSuggestions = false;
 
   // Computed values
   double _totalSalesAmount = 0;
@@ -58,6 +59,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     
     _selectedDate = entry?.date ?? DateTime.now();
     _shopNameController = TextEditingController(text: entry?.shopName ?? '');
+    _selectedOrderType = entry?.orderType ?? OrderType.externalOrder;
+    _selectedDeliverySlot = entry?.deliverySlot ?? DeliverySlot.morning;
+    _selectedDeliveryTime = _parseDeliveryTime(entry?.deliveryTime);
+    _prepLeadDays = entry?.prepLeadDays ?? 1;
     _selectedProduct = entry?.productType ?? ProductType.idly;
     _selectedSaleType = entry?.saleType ?? SaleType.wholesale;
     
@@ -94,6 +99,23 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     }
   }
 
+  TimeOfDay? _parseDeliveryTime(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    final parts = value.split(':');
+    if (parts.length != 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return null;
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  String? _formatDeliveryTime(TimeOfDay? value) {
+    if (value == null) return null;
+    final hh = value.hour.toString().padLeft(2, '0');
+    final mm = value.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
+
   @override
   void dispose() {
     _shopNameController.dispose();
@@ -121,15 +143,6 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       _totalSalesAmount = quantity * rate;
       _totalCost = quantity * costPerUnit;
       _profit = _totalSalesAmount - _totalCost;
-    });
-  }
-
-  /// Fetch shop suggestions
-  Future<void> _fetchShopSuggestions(String query) async {
-    final suggestions = await context.read<SalesProvider>().getShopSuggestions(query);
-    setState(() {
-      _shopSuggestions = suggestions;
-      _showSuggestions = suggestions.isNotEmpty && query.isNotEmpty;
     });
   }
 
@@ -182,6 +195,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       id: widget.editEntry?.id,
       date: _selectedDate,
       shopName: _shopNameController.text.trim(),
+      orderType: _selectedOrderType,
+      deliverySlot: _selectedDeliverySlot,
+      deliveryTime: _formatDeliveryTime(_selectedDeliveryTime),
+      prepLeadDays: _prepLeadDays,
       productType: _selectedProduct,
       saleType: _selectedSaleType,
       ratePerUnit: rate,
@@ -229,6 +246,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     setState(() {
       _selectedDate = DateTime.now();
       _shopNameController.clear();
+      _selectedOrderType = OrderType.externalOrder;
+      _selectedDeliverySlot = DeliverySlot.morning;
+      _selectedDeliveryTime = null;
+      _prepLeadDays = 1;
       _selectedProduct = ProductType.idly;
       _selectedSaleType = SaleType.wholesale;
       _selectedRate = defaultWholesaleRate;
@@ -254,7 +275,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Entry' : 'Add Sale Entry'),
+        title: Text(isEditing ? 'Edit Order Entry' : 'Add Order Entry'),
         actions: [
           if (!isEditing)
             IconButton(
@@ -267,17 +288,57 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Date Picker
               _buildDatePicker(),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
+
+              // Order Type and Delivery Planning
+              CustomDropdown<OrderType>(
+                label: 'Order Type',
+                value: _selectedOrderType,
+                items: OrderType.values,
+                itemLabel: (o) => o.displayName,
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _selectedOrderType = value);
+                },
+              ),
+              const SizedBox(height: AppSpacing.lg),
+
+              CustomDropdown<DeliverySlot>(
+                label: 'Dispatch Slot',
+                value: _selectedDeliverySlot,
+                items: DeliverySlot.values,
+                itemLabel: (d) => d.displayName,
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _selectedDeliverySlot = value);
+                },
+              ),
+              const SizedBox(height: AppSpacing.lg),
+
+              _buildDeliveryTimePicker(),
+              const SizedBox(height: AppSpacing.lg),
+
+              CustomDropdown<int>(
+                label: 'Preparation Reminder',
+                value: _prepLeadDays,
+                items: const [1, 2],
+                itemLabel: (d) => '$d day${d == 1 ? '' : 's'} before dispatch',
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _prepLeadDays = value);
+                },
+              ),
+              const SizedBox(height: AppSpacing.lg),
 
               // Shop Name with Autocomplete
               _buildShopNameField(),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
 
               // Product Type Dropdown
               CustomDropdown<ProductType>(
@@ -287,7 +348,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 itemLabel: (p) => p.displayName,
                 onChanged: _onProductChanged,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
 
               // Sale Type Dropdown
               CustomDropdown<SaleType>(
@@ -297,7 +358,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 itemLabel: (s) => s.displayName,
                 onChanged: _onSaleTypeChanged,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
 
               // Rate Input - Dropdown for Idly, Text for others
               if (_selectedProduct == ProductType.idly)
@@ -328,7 +389,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                   },
                   onChanged: (_) => _calculateTotals(),
                 ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
 
               // Quantity
               NumericTextField(
@@ -346,7 +407,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 },
                 onChanged: (_) => _calculateTotals(),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
 
               // Cost per Unit
               NumericTextField(
@@ -365,67 +426,65 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 },
                 onChanged: (_) => _calculateTotals(),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xxl),
               
               // Payment Status
               Text(
-                'Payment Status',
+                'Payment Status (Advance)',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: RadioListTile<PaymentStatus>(
-                      title: const Text('Paid'),
-                      value: PaymentStatus.paid,
-                      groupValue: _paymentStatus,
-                      onChanged: (value) {
-                         setState(() {
-                           _paymentStatus = value!;
-                           // If switching to paid, auto-fill full amount logically in save, 
-                           // but clear controller to avoid confusion or set to total
-                           _paidAmountController.clear(); 
-                         });
-                      },
-                      contentPadding: EdgeInsets.zero,
+              const SizedBox(height: AppSpacing.sm),
+              RadioGroup<PaymentStatus>(
+                groupValue: _paymentStatus,
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _paymentStatus = value;
+                    if (value == PaymentStatus.paid) {
+                      _paidAmountController.clear();
+                    }
+                  });
+                },
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<PaymentStatus>(
+                        title: const Text('Paid'),
+                        value: PaymentStatus.paid,
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: RadioListTile<PaymentStatus>(
-                      title: const Text('Pending'),
-                      value: PaymentStatus.pending,
-                      groupValue: _paymentStatus,
-                      onChanged: (value) {
-                         setState(() => _paymentStatus = value!);
-                      },
-                      contentPadding: EdgeInsets.zero,
+                    Expanded(
+                      child: RadioListTile<PaymentStatus>(
+                        title: const Text('Pending'),
+                        value: PaymentStatus.pending,
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               
               // Paid Amount Input (only if Pending)
               if (_paymentStatus == PaymentStatus.pending)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
                   child: NumericTextField(
                     label: 'Amount Paid (Partial)',
                     controller: _paidAmountController,
                     allowDecimal: true,
-                    hint: 'Enter 0 logic for credit',
+                    hint: 'Enter advance received (0 for full credit)',
                   ),
                 ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xxl),
 
               // Calculated Fields
-              Card(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              SoftCard(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   child: Column(
                     children: [
                       _buildCalculatedRow(
@@ -450,7 +509,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
 
               // Notes
               CustomTextField(
@@ -459,7 +518,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 maxLines: 2,
                 hint: 'Any additional notes...',
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xxl),
 
               // Action Buttons
               Row(
@@ -470,7 +529,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                       child: const Text('Reset'),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: AppSpacing.lg),
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
@@ -480,7 +539,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
             ],
           ),
         ),
@@ -493,7 +552,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Date',
+          'Dispatch Date',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -505,7 +564,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               context: context,
               initialDate: _selectedDate,
               firstDate: DateTime(2020),
-              lastDate: DateTime.now(),
+              lastDate: DateTime.now().add(const Duration(days: 730)),
             );
             if (picked != null) {
               setState(() => _selectedDate = picked);
@@ -527,6 +586,63 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                   DateFormat('dd/MM/yyyy').format(_selectedDate),
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeliveryTimePicker() {
+    final displayText = _selectedDeliveryTime == null
+        ? 'Tap to set time (optional)'
+        : _selectedDeliveryTime!.format(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Delivery Time',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () async {
+            final picked = await showTimePicker(
+              context: context,
+              initialTime: _selectedDeliveryTime ?? const TimeOfDay(hour: 7, minute: 0),
+            );
+            if (picked != null) {
+              setState(() => _selectedDeliveryTime = picked);
+            }
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Theme.of(context).inputDecorationTheme.fillColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.schedule, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    displayText,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ),
+                if (_selectedDeliveryTime != null)
+                  IconButton(
+                    onPressed: () => setState(() => _selectedDeliveryTime = null),
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Clear time',
+                  ),
               ],
             ),
           ),

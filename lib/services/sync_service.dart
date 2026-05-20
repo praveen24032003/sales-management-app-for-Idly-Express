@@ -2,8 +2,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
-import '../models/sales_entry_model.dart';
-import '../models/expense_model.dart';
 import 'database_service.dart';
 
 /// Service to handle synchronization between local SQLite and Firestore

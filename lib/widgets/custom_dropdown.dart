@@ -32,7 +32,7 @@ class CustomDropdown<T> extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<T>(
-          value: value,
+          initialValue: value,
           decoration: const InputDecoration(),
           items: items.map((item) {
             return DropdownMenuItem<T>(
@@ -74,7 +74,7 @@ class RateDropdown extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<double>(
-          value: value,
+          initialValue: value,
           decoration: const InputDecoration(),
           items: options.map((rate) {
             return DropdownMenuItem<double>(

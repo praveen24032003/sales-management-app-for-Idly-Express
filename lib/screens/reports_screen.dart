@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:file_picker/file_picker.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import '../core/constants.dart';
 import '../core/theme.dart';
 import '../models/sales_entry_model.dart';
@@ -54,18 +50,7 @@ class _ReportsScreenState extends State<ReportsScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reports'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.file_download),
-            onPressed: _exportData,
-            tooltip: 'Export CSV',
-          ),
-          IconButton(
-            icon: const Icon(Icons.file_upload),
-            onPressed: _importData,
-            tooltip: 'Import CSV',
-          ),
-        ],
+            // actions: [], // Removed empty actions array
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
@@ -672,68 +657,6 @@ class _ReportsScreenState extends State<ReportsScreen>
     );
   }
 
-  // ==================== EXPORT/IMPORT ====================
-
-  Future<void> _exportData() async {
-    try {
-      final provider = context.read<SalesProvider>();
-      final csv = await provider.exportToCsv();
-      
-      // Save to temp file
-      final directory = await getTemporaryDirectory();
-      final file = File('${directory.path}/idly_express_backup.csv');
-      await file.writeAsString(csv);
-
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        subject: 'Idly Express Backup',
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Export failed: $e'),
-            backgroundColor: context.lossColor,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _importData() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
-      );
-
-      if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        final content = await file.readAsString();
-        
-        final provider = context.read<SalesProvider>();
-        final count = await provider.importFromCsv(content);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Imported $count entries'),
-              backgroundColor: context.profitColor,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Import failed: $e'),
-            backgroundColor: context.lossColor,
-          ),
-        );
-      }
-    }
-  }
 
 
 

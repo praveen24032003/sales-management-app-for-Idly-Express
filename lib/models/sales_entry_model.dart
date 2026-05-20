@@ -5,6 +5,10 @@ class SalesEntry {
   final int? id;
   final DateTime date;
   final String shopName;
+  final OrderType orderType;
+  final DeliverySlot deliverySlot;
+  final String? deliveryTime;
+  final int prepLeadDays;
   final ProductType productType;
   final SaleType saleType;
   final double ratePerUnit;
@@ -21,6 +25,10 @@ class SalesEntry {
     this.id,
     required this.date,
     required this.shopName,
+    this.orderType = OrderType.externalOrder,
+    this.deliverySlot = DeliverySlot.morning,
+    this.deliveryTime,
+    this.prepLeadDays = 1,
     required this.productType,
     required this.saleType,
     required this.ratePerUnit,
@@ -48,6 +56,10 @@ class SalesEntry {
       'id': id,
       'date': date.toIso8601String(),
       'shopName': shopName,
+      'order_type': orderType.index,
+      'delivery_slot': deliverySlot.index,
+      'delivery_time': deliveryTime,
+      'prep_lead_days': prepLeadDays,
       'productType': productType.index,
       'saleType': saleType.index,
       'ratePerUnit': ratePerUnit,
@@ -71,6 +83,10 @@ class SalesEntry {
       id: map['id'] as int?,
       date: DateTime.parse(map['date'] as String),
       shopName: map['shopName'] as String,
+      orderType: OrderType.values[map['order_type'] as int? ?? 1],
+      deliverySlot: DeliverySlot.values[map['delivery_slot'] as int? ?? 0],
+      deliveryTime: map['delivery_time'] as String?,
+      prepLeadDays: map['prep_lead_days'] as int? ?? 1,
       productType: ProductType.values[map['productType'] as int],
       saleType: SaleType.values[map['saleType'] as int],
       ratePerUnit: (map['ratePerUnit'] as num).toDouble(),
@@ -92,6 +108,10 @@ class SalesEntry {
     int? id,
     DateTime? date,
     String? shopName,
+    OrderType? orderType,
+    DeliverySlot? deliverySlot,
+    String? deliveryTime,
+    int? prepLeadDays,
     ProductType? productType,
     SaleType? saleType,
     double? ratePerUnit,
@@ -108,6 +128,10 @@ class SalesEntry {
       id: id ?? this.id,
       date: date ?? this.date,
       shopName: shopName ?? this.shopName,
+      orderType: orderType ?? this.orderType,
+      deliverySlot: deliverySlot ?? this.deliverySlot,
+      deliveryTime: deliveryTime ?? this.deliveryTime,
+      prepLeadDays: prepLeadDays ?? this.prepLeadDays,
       productType: productType ?? this.productType,
       saleType: saleType ?? this.saleType,
       ratePerUnit: ratePerUnit ?? this.ratePerUnit,
@@ -124,9 +148,9 @@ class SalesEntry {
 
   // For CSV export
   static String get csvHeader =>
-      'Date,Shop Name,Product,Sale Type,Rate,Quantity,Cost/Unit,Total Sales,Total Cost,Profit,Payment Status,Paid Amount,Pending Amount,Notes';
+      'Date,Shop Name,Order Type,Delivery Slot,Delivery Time,Prep Lead Days,Product,Sale Type,Rate,Quantity,Cost/Unit,Total Sales,Total Cost,Profit,Payment Status,Paid Amount,Pending Amount,Notes';
 
   String toCsvRow() {
-    return '${date.toIso8601String().split('T')[0]},$shopName,${productType.displayName},${saleType.displayName},$ratePerUnit,$quantity,$costPerUnit,$totalSalesAmount,$totalCost,$profit,${paymentStatus.displayName},$paidAmount,$pendingAmount,${notes ?? ''}';
+    return '${date.toIso8601String().split('T')[0]},$shopName,${orderType.displayName},${deliverySlot.displayName},${deliveryTime ?? ''},$prepLeadDays,${productType.displayName},${saleType.displayName},$ratePerUnit,$quantity,$costPerUnit,$totalSalesAmount,$totalCost,$profit,${paymentStatus.displayName},$paidAmount,$pendingAmount,${notes ?? ''}';
   }
 }
