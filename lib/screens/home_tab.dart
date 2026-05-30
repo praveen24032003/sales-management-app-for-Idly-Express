@@ -5,6 +5,7 @@ import '../core/constants.dart';
 import '../core/theme.dart';
 import '../providers/sales_provider.dart';
 import '../providers/expense_provider.dart';
+import '../services/sync_service.dart';
 import '../widgets/hero_card.dart';
 import '../widgets/section_header.dart';
 import '../widgets/soft_card.dart';
@@ -43,6 +44,7 @@ class _HomeTabState extends State<HomeTab> {
         builder: (context, provider, expProv, _) {
           return RefreshIndicator(
             onRefresh: () async {
+              await SyncService.instance.syncNow();
               await provider.loadData();
               if (mounted) {
                 await expProv.loadExpenses();

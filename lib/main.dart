@@ -4,6 +4,7 @@ import 'core/theme.dart';
 import 'providers/sales_provider.dart';
 import 'providers/expense_provider.dart';
 import 'providers/theme_controller.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/splash_screen.dart';
 import 'screens/add_entry_screen.dart';
@@ -14,7 +15,21 @@ import 'screens/contacts_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await _ensureFirebaseSession();
   runApp(const IdlyExpressApp());
+}
+
+Future<void> _ensureFirebaseSession() async {
+  final auth = FirebaseAuth.instance;
+  if (auth.currentUser != null) {
+    return;
+  }
+
+  try {
+    await auth.signInAnonymously();
+  } catch (error) {
+    debugPrint('Anonymous Firebase sign-in failed: $error');
+  }
 }
 
 class IdlyExpressApp extends StatelessWidget {

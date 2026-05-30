@@ -1,57 +1,63 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This workspace contains two Flutter apps. Claude Code should treat `idly_express_org_sync/` as the active shipping app and the workspace root app as legacy reference code unless the prompt explicitly says otherwise.
 
-## Project
+## Active Project
 
-**Idly Express** — a Flutter mobile app for tracking sales and profit for an idly (South Indian food) business. Targets Android primarily; Firebase must be configured before running.
+**Primary target:** `idly_express_org_sync/`
 
-## Commands
+- Flutter rebuild of Idly Express with login, organization scoping, offline queue replay, and Supabase sync.
+- Current Android package id: `com.idlyexpress.salesmanager`.
+- Mobile auth email verification now uses the app callback scheme `com.idlyexpress.salesmanager://login-callback/`.
+- Signed release APK and AAB have already been produced successfully.
+- The signed release APK has also been installed on a connected physical Android device.
+
+**Legacy reference:** workspace root app (`lib/`, `android/`, `ios/`, etc.)
+
+- Keep this code untouched unless the user explicitly asks to work on the old app.
+
+## Start Here
+
+1. Prefer reading `idly_express_org_sync/CLAUDE.md` first for project-specific guidance.
+2. Use `idly_express_org_sync/README.md` for current release status and setup.
+3. Use `idly_express_org_sync/docs/GO_LIVE_CHECKLIST.md` for launch gating.
+
+## Working Commands
+
+Run commands from `idly_express_org_sync/` unless a doc says otherwise.
 
 ```bash
-# Run the app (connected device or emulator required)
-flutter run
+# install deps
+flutter pub get
 
-# Build release APK
-flutter build apk --release
-
-# Run all tests
+# analyze and test
+flutter analyze
 flutter test
 
-# Run a single test file
-flutter test test/widget_test.dart
+# run on device/emulator
+flutter run
 
-# Analyze code
-flutter analyze
+# run on web for local verification
+flutter run -d web-server --web-hostname 127.0.0.1 --web-port 8080
 
-# Format code
-dart format lib/
-
-# Get dependencies
-flutter pub get
+# build signed release artifacts from android/
+cd android
+./gradlew assembleRelease -PidlyRequireReleaseSigning=true --no-daemon
+./gradlew bundleRelease -PidlyRequireReleaseSigning=true --no-daemon
 ```
 
-## Architecture
+## Current Release State
 
-**State management:** `provider` package with two `ChangeNotifier` providers registered in `main.dart`:
-- `SalesProvider` — all sales data, aggregations (today/month/year stats), CSV import/export
-- `ExpenseProvider` — expense tracking by category
+- Signed APK path: `idly_express_org_sync/build/app/outputs/flutter-apk/app-release.apk`
+- Signed AAB path: `idly_express_org_sync/build/app/outputs/bundle/release/app-release.aab`
+- Signing config lives in `idly_express_org_sync/android/key.properties` and uses `PKCS12`.
+- Local web verification runs at `http://127.0.0.1:8080` with `flutter run -d web-server --web-hostname 127.0.0.1 --web-port 8080`.
+- Signup now keeps the organization name pending until Supabase returns a session after email verification.
+- Supabase Auth must allow `com.idlyexpress.salesmanager://login-callback/` in URL Configuration for mobile email verification to return to the app instead of `localhost`.
+- Remaining launch work is primarily live Supabase rollout verification and device-level UAT, not missing core product screens.
 
-**Data layer (offline-first):**
-- `DatabaseService` (singleton) — SQLite via `sqflite`. DB version 3. Three tables: `sales_entries`, `shops` (for autocomplete), `expenses`. All write mutations go through `DatabaseService` then `SalesProvider.loadData()` reloads all cached lists.
-- `SyncService` (singleton, extends `ChangeNotifier`) — pushes unsynced local records to Cloud Firestore when connectivity is available. Sync is one-directional (local → Firestore). Triggered automatically on write and on connectivity restoration. Multi-device pull is not yet implemented.
+## Guardrails
 
-**Screens:** `DashboardScreen` is the home route. Other screens: `AddEntryScreen`, `ReportsScreen`, `ExpensesScreen`, `ShopBalancesScreen`, `ProfitScreen`.
-
-**Models:**
-- `SalesEntry` — immutable value object with computed fields (`totalSalesAmount`, `profit`, `pendingAmount`). Enums for `ProductType` (Idly, Sandhagai, Idiyappam), `SaleType` (wholesale/retail), `PaymentStatus` (paid/pending). Enum values are stored by index in SQLite — **never reorder enum members**.
-- `Expense` — simpler model with category, amount, date.
-
-**Constants** (`lib/core/constants.dart`): all enums, DB table/file names, default rate values, currency symbol.
-
-## Key Constraints
-
-- Firebase (`google-services.json`) is already included in `android/app/`. The app calls `Firebase.initializeApp()` at startup and will crash without a valid Firebase project.
-- DB schema migrations use `onUpgrade`; adding columns requires a version bump and `ALTER TABLE` in `_onUpgrade`. Dropping/recreating tables loses data — avoid for production migrations.
-- `paidAmount` defaults to the full sale amount (fully paid) when not explicitly set — see `SalesEntry` constructor.
-- Float tolerance of `0.1` is used for `isFullyPaid` to handle rounding in currency math.
+- Do not commit `android/key.properties`, `*.jks`, or other signing secrets.
+- Do not reopen broad parity work unless the user requests it; the rebuild already covers the core v1 business flows.
+- When editing docs, keep the rebuild app status current and avoid describing the signed build as still pending.

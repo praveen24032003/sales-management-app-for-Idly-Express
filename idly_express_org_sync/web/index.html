@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Idly Express — Branch workspace for sales, supply templates, and dispatch.">
+  <meta name="theme-color" content="#35A8D8">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Idly Express">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon (SVG with PNG fallback) -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg"/>
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Idly Express — Branch workspace</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    html, body { background: #F8FCFF; }
+    #idly-splash {
+      position: fixed; inset: 0; display: flex; align-items: center;
+      justify-content: center; background: linear-gradient(180deg, #F8FCFF 0%, #FDFEFF 50%, #EAF6FB 100%);
+      z-index: 9999; transition: opacity 0.35s ease-out;
+    }
+    #idly-splash .glyph {
+      width: 84px; height: 84px; border-radius: 24px;
+      background: linear-gradient(135deg, #35A8D8 0%, #1A6E91 100%);
+      box-shadow: 0 12px 28px rgba(53, 168, 216, 0.35);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #idly-splash .wordmark {
+      margin-top: 16px; font: 900 22px/1.1 -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: #20313C; letter-spacing: -0.5px; text-align: center;
+    }
+    #idly-splash .tag {
+      margin-top: 4px; font: 700 11px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: #6A8391; letter-spacing: 0.6px; text-transform: uppercase;
+    }
+    .ready #idly-splash { opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="idly-splash">
+    <div style="display:flex; flex-direction:column; align-items:center;">
+      <div class="glyph">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="11" y="29" width="26" height="6" rx="3" fill="white" fill-opacity="0.95"/>
+          <circle cx="24" cy="24" r="8.5" fill="white" fill-opacity="0.95"/>
+          <path d="M16 11 V18" stroke="white" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round"/>
+          <path d="M24 9 V18" stroke="white" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round"/>
+          <path d="M32 11 V18" stroke="white" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="wordmark">Idly Express</div>
+      <div class="tag">Branch workspace</div>
+    </div>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function() {
+      document.documentElement.classList.add('ready');
+      setTimeout(function() {
+        var el = document.getElementById('idly-splash');
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+      }, 500);
+    });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

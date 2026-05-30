@@ -1,4 +1,6 @@
-MIT License
+If you want, I can take the final release checklist pass next and turn the remaining Supabase/manual items into a strict go-live checklist.
+If you want to distribute the APK, I can prepare the Android signing handoff for a real production keystore.
+If you want one more confidence pass, I can do a v1 code review sweep focused only on release risks and edge cases.MIT License
 
 Copyright (c) 2026 Praveen Kumar
 

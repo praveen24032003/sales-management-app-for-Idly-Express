@@ -35,6 +35,13 @@ class _TimeGreetingHeroState extends State<TimeGreetingHero>
     return Icons.wb_sunny;
   }
 
+  String get _todayLabel {
+    final now = DateTime.now();
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${weekdays[now.weekday - 1]}, ${now.day} ${months[now.month - 1]} ${now.year}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -144,6 +151,16 @@ class _TimeGreetingHeroState extends State<TimeGreetingHero>
                         offset: Offset(0, 2),
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _todayLabel,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.86),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.2,
                   ),
                 ),
               ],

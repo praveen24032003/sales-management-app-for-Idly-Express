@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../core/constants.dart';
@@ -8,6 +10,11 @@ import '../models/dispatch_leave_model.dart';
 
 /// Database service for offline-first data storage
 class DatabaseService {
+  static const _syncOperationUpsert = 'upsert';
+  static const _syncOperationDelete = 'delete';
+  static const _syncEntitySales = 'sales';
+  static const _syncEntityExpenses = 'expenses';
+
   static Database? _database;
   static final DatabaseService instance = DatabaseService._init();
 
@@ -25,46 +32,93 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
+      onOpen: _onOpen,
     );
+  }
+
+  Future<void> _onOpen(Database db) async {
+    await _ensureCurrentSchema(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // For development simplicity, we'll drop and recreate for v1->v2
-      await db.execute('DROP TABLE IF EXISTS $salesTable');
-      await db.execute('DROP TABLE IF EXISTS $shopsTable');
-      await db.execute('DROP TABLE IF EXISTS expenses');
-      await db.execute('DROP TABLE IF EXISTS $supplyTemplatesTable');
-      await db.execute('DROP TABLE IF EXISTS $appSettingsTable');
-      await _createDB(db, newVersion);
-      return;
+      // Preserve existing user data instead of recreating tables during upgrade.
+      await _ensureTableExists(
+        db,
+        salesTable,
+        '''
+        CREATE TABLE IF NOT EXISTS $salesTable (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT NOT NULL,
+          shopName TEXT NOT NULL,
+          productType INTEGER NOT NULL,
+          saleType INTEGER NOT NULL,
+          ratePerUnit REAL NOT NULL,
+          quantity INTEGER NOT NULL,
+          costPerUnit REAL NOT NULL,
+          totalSalesAmount REAL NOT NULL,
+          totalCost REAL NOT NULL,
+          profit REAL NOT NULL,
+          paymentStatus INTEGER NOT NULL,
+          paidAmount REAL NOT NULL,
+          notes TEXT
+        )
+      ''',
+      );
+      await _ensureTableExists(
+        db,
+        shopsTable,
+        '''
+        CREATE TABLE IF NOT EXISTS $shopsTable (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT UNIQUE NOT NULL,
+          lastUsed TEXT NOT NULL
+        )
+      ''',
+      );
+      await _ensureTableExists(
+        db,
+        'expenses',
+        '''
+        CREATE TABLE IF NOT EXISTS expenses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT NOT NULL,
+          category INTEGER NOT NULL,
+          amount REAL NOT NULL,
+          notes TEXT
+        )
+      ''',
+      );
     }
     
     if (oldVersion < 3) {
       // Add sync columns for v2->v3
       // Sales Table
-      await db.execute('ALTER TABLE $salesTable ADD COLUMN firestore_id TEXT');
-      await db.execute('ALTER TABLE $salesTable ADD COLUMN last_modified INTEGER NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE $salesTable ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, salesTable, 'firestore_id', 'TEXT');
+      await _addColumnIfMissing(db, salesTable, 'last_modified', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, salesTable, 'is_synced', 'INTEGER NOT NULL DEFAULT 0');
       
       // Expenses Table
-      await db.execute('ALTER TABLE expenses ADD COLUMN firestore_id TEXT');
-      await db.execute('ALTER TABLE expenses ADD COLUMN last_modified INTEGER NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE expenses ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'expenses', 'firestore_id', 'TEXT');
+      await _addColumnIfMissing(db, 'expenses', 'last_modified', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, 'expenses', 'is_synced', 'INTEGER NOT NULL DEFAULT 0');
     }
 
     if (oldVersion < 4) {
-      await db.execute('ALTER TABLE $salesTable ADD COLUMN order_type INTEGER NOT NULL DEFAULT 1');
-      await db.execute('ALTER TABLE $salesTable ADD COLUMN delivery_slot INTEGER NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE $salesTable ADD COLUMN delivery_time TEXT');
-      await db.execute('ALTER TABLE $salesTable ADD COLUMN prep_lead_days INTEGER NOT NULL DEFAULT 1');
+      await _addColumnIfMissing(db, salesTable, 'order_type', 'INTEGER NOT NULL DEFAULT 1');
+      await _addColumnIfMissing(db, salesTable, 'delivery_slot', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, salesTable, 'delivery_time', 'TEXT');
+      await _addColumnIfMissing(db, salesTable, 'prep_lead_days', 'INTEGER NOT NULL DEFAULT 1');
     }
 
     if (oldVersion < 5) {
-      await db.execute('''
+      await _ensureTableExists(
+        db,
+        supplyTemplatesTable,
+        '''
         CREATE TABLE IF NOT EXISTS $supplyTemplatesTable (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           shop_name TEXT NOT NULL,
@@ -81,33 +135,46 @@ class DatabaseService {
           end_date TEXT,
           is_active INTEGER NOT NULL DEFAULT 1
         )
-      ''');
+      ''',
+      );
 
-      await db.execute('''
+      await _ensureTableExists(
+        db,
+        appSettingsTable,
+        '''
         CREATE TABLE IF NOT EXISTS $appSettingsTable (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
         )
-      ''');
+      ''',
+      );
     }
 
     if (oldVersion >= 5 && oldVersion < 6) {
-      await db.execute("ALTER TABLE $supplyTemplatesTable ADD COLUMN active_weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7'");
-      await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN start_date TEXT');
-      await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN end_date TEXT');
+      await _addColumnIfMissing(
+        db,
+        supplyTemplatesTable,
+        'active_weekdays',
+        "TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7'",
+      );
+      await _addColumnIfMissing(db, supplyTemplatesTable, 'start_date', 'TEXT');
+      await _addColumnIfMissing(db, supplyTemplatesTable, 'end_date', 'TEXT');
     }
 
     if (oldVersion < 7) {
       // Add mobile column to shops
-      await db.execute('ALTER TABLE $shopsTable ADD COLUMN mobile TEXT');
+      await _addColumnIfMissing(db, shopsTable, 'mobile', 'TEXT');
       // Add customer_mobile to sales_entries
-      await db.execute('ALTER TABLE $salesTable ADD COLUMN customer_mobile TEXT');
+      await _addColumnIfMissing(db, salesTable, 'customer_mobile', 'TEXT');
       // Add morning/evening split to supply templates
-      await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN morning_quantity INTEGER NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN evening_quantity INTEGER NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE $supplyTemplatesTable ADD COLUMN shop_mobile TEXT');
+      await _addColumnIfMissing(db, supplyTemplatesTable, 'morning_quantity', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, supplyTemplatesTable, 'evening_quantity', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, supplyTemplatesTable, 'shop_mobile', 'TEXT');
       // Create dispatch_leaves table
-      await db.execute('''
+      await _ensureTableExists(
+        db,
+        dispatchLeavesTable,
+        '''
         CREATE TABLE IF NOT EXISTS $dispatchLeavesTable (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           template_id INTEGER NOT NULL,
@@ -115,11 +182,15 @@ class DatabaseService {
           delivery_slot INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL
         )
-      ''');
+      ''',
+      );
     }
 
     if (oldVersion < 8) {
-      await db.execute('''
+      await _ensureTableExists(
+        db,
+        contactsTable,
+        '''
         CREATE TABLE IF NOT EXISTS $contactsTable (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT NOT NULL,
@@ -128,8 +199,32 @@ class DatabaseService {
           last_used TEXT NOT NULL,
           UNIQUE(name, contact_type)
         )
-      ''');
+      ''',
+      );
     }
+
+    if (oldVersion < 9) {
+      await _ensureTableExists(
+        db,
+        syncQueueTable,
+        '''
+        CREATE TABLE IF NOT EXISTS $syncQueueTable (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          entity_type TEXT NOT NULL,
+          entity_local_id INTEGER NOT NULL,
+          operation TEXT NOT NULL,
+          firestore_id TEXT,
+          payload TEXT,
+          created_at INTEGER NOT NULL,
+          retry_count INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          UNIQUE(entity_type, entity_local_id)
+        )
+      ''',
+      );
+    }
+
+    await _ensureCurrentSchema(db);
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -235,6 +330,164 @@ class DatabaseService {
         UNIQUE(name, contact_type)
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE $syncQueueTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT NOT NULL,
+        entity_local_id INTEGER NOT NULL,
+        operation TEXT NOT NULL,
+        firestore_id TEXT,
+        payload TEXT,
+        created_at INTEGER NOT NULL,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        UNIQUE(entity_type, entity_local_id)
+      )
+    ''');
+  }
+
+  Future<void> _ensureCurrentSchema(Database db) async {
+    await _ensureTableExists(
+      db,
+      supplyTemplatesTable,
+      '''
+      CREATE TABLE IF NOT EXISTS $supplyTemplatesTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop_name TEXT NOT NULL,
+        product_type INTEGER NOT NULL,
+        sale_type INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        rate_per_unit REAL NOT NULL,
+        cost_per_unit REAL NOT NULL,
+        delivery_slot INTEGER NOT NULL DEFAULT 0,
+        delivery_time TEXT,
+        prep_lead_days INTEGER NOT NULL DEFAULT 1,
+        active_weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7',
+        start_date TEXT,
+        end_date TEXT,
+        morning_quantity INTEGER NOT NULL DEFAULT 0,
+        evening_quantity INTEGER NOT NULL DEFAULT 0,
+        shop_mobile TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1
+      )
+    ''',
+    );
+    await _ensureTableExists(
+      db,
+      dispatchLeavesTable,
+      '''
+      CREATE TABLE IF NOT EXISTS $dispatchLeavesTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id INTEGER NOT NULL,
+        leave_date TEXT NOT NULL,
+        delivery_slot INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    ''',
+    );
+    await _ensureTableExists(
+      db,
+      contactsTable,
+      '''
+      CREATE TABLE IF NOT EXISTS $contactsTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        mobile TEXT,
+        contact_type TEXT NOT NULL,
+        last_used TEXT NOT NULL,
+        UNIQUE(name, contact_type)
+      )
+    ''',
+    );
+    await _ensureTableExists(
+      db,
+      appSettingsTable,
+      '''
+      CREATE TABLE IF NOT EXISTS $appSettingsTable (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''',
+    );
+    await _ensureTableExists(
+      db,
+      syncQueueTable,
+      '''
+      CREATE TABLE IF NOT EXISTS $syncQueueTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT NOT NULL,
+        entity_local_id INTEGER NOT NULL,
+        operation TEXT NOT NULL,
+        firestore_id TEXT,
+        payload TEXT,
+        created_at INTEGER NOT NULL,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        UNIQUE(entity_type, entity_local_id)
+      )
+    ''',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      supplyTemplatesTable,
+      'active_weekdays',
+      "TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7'",
+    );
+    await _addColumnIfMissing(db, supplyTemplatesTable, 'start_date', 'TEXT');
+    await _addColumnIfMissing(db, supplyTemplatesTable, 'end_date', 'TEXT');
+    await _addColumnIfMissing(db, supplyTemplatesTable, 'morning_quantity', 'INTEGER NOT NULL DEFAULT 0');
+    await _addColumnIfMissing(db, supplyTemplatesTable, 'evening_quantity', 'INTEGER NOT NULL DEFAULT 0');
+    await _addColumnIfMissing(db, supplyTemplatesTable, 'shop_mobile', 'TEXT');
+    await _addColumnIfMissing(db, supplyTemplatesTable, 'is_active', 'INTEGER NOT NULL DEFAULT 1');
+
+    await _addColumnIfMissing(db, shopsTable, 'mobile', 'TEXT');
+    await _addColumnIfMissing(db, salesTable, 'customer_mobile', 'TEXT');
+    await _addColumnIfMissing(db, salesTable, 'order_type', 'INTEGER NOT NULL DEFAULT 1');
+    await _addColumnIfMissing(db, salesTable, 'delivery_slot', 'INTEGER NOT NULL DEFAULT 0');
+    await _addColumnIfMissing(db, salesTable, 'delivery_time', 'TEXT');
+    await _addColumnIfMissing(db, salesTable, 'prep_lead_days', 'INTEGER NOT NULL DEFAULT 1');
+    await _addColumnIfMissing(db, salesTable, 'firestore_id', 'TEXT');
+    await _addColumnIfMissing(db, salesTable, 'last_modified', 'INTEGER NOT NULL DEFAULT 0');
+    await _addColumnIfMissing(db, salesTable, 'is_synced', 'INTEGER NOT NULL DEFAULT 0');
+    await _addColumnIfMissing(db, 'expenses', 'firestore_id', 'TEXT');
+    await _addColumnIfMissing(db, 'expenses', 'last_modified', 'INTEGER NOT NULL DEFAULT 0');
+    await _addColumnIfMissing(db, 'expenses', 'is_synced', 'INTEGER NOT NULL DEFAULT 0');
+  }
+
+  Future<void> _ensureTableExists(Database db, String tableName, String createSql) async {
+    final result = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      [tableName],
+    );
+    if (result.isEmpty) {
+      await db.execute(createSql);
+    }
+  }
+
+  Future<void> _addColumnIfMissing(Database db, String tableName, String columnName, String definition) async {
+    if (!await _tableExists(db, tableName)) {
+      return;
+    }
+    if (await _columnExists(db, tableName, columnName)) {
+      return;
+    }
+
+    await db.execute('ALTER TABLE $tableName ADD COLUMN $columnName $definition');
+  }
+
+  Future<bool> _tableExists(Database db, String tableName) async {
+    final result = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      [tableName],
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<bool> _columnExists(Database db, String tableName, String columnName) async {
+    final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+    return columns.any((column) => column['name'] == columnName);
   }
 
   // ==================== RECURRING TEMPLATES ====================
@@ -264,6 +517,7 @@ class DatabaseService {
 
   Future<int> deleteSupplyTemplate(int id) async {
     final db = await database;
+    await db.delete(dispatchLeavesTable, where: 'template_id = ?', whereArgs: [id]);
     return db.delete(supplyTemplatesTable, where: 'id = ?', whereArgs: [id]);
   }
 
@@ -288,29 +542,59 @@ class DatabaseService {
     );
   }
 
+  List<DeliverySlot> _templateSlots(SupplyTemplate template) {
+    final slots = <DeliverySlot>[];
+    if (template.morningQuantity > 0) {
+      slots.add(DeliverySlot.morning);
+    }
+    if (template.eveningQuantity > 0) {
+      slots.add(DeliverySlot.evening);
+    }
+    if (slots.isEmpty) {
+      slots.add(template.deliverySlot);
+    }
+    return slots;
+  }
+
+  int _templateQuantityForSlot(SupplyTemplate template, DeliverySlot slot) {
+    if (slot == DeliverySlot.morning && template.morningQuantity > 0) {
+      return template.morningQuantity;
+    }
+    if (slot == DeliverySlot.evening && template.eveningQuantity > 0) {
+      return template.eveningQuantity;
+    }
+    return template.quantity;
+  }
+
   Future<bool> _hasEverydayOrderForTemplateToday(SupplyTemplate template) async {
     final db = await database;
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, now.day).toIso8601String();
     final end = DateTime(now.year, now.month, now.day + 1).toIso8601String();
 
-    final result = await db.query(
-      salesTable,
-      columns: ['id'],
-      where: 'shopName = ? AND productType = ? AND saleType = ? AND delivery_slot = ? AND order_type = ? AND date >= ? AND date < ?',
-      whereArgs: [
-        template.shopName,
-        template.productType.index,
-        template.saleType.index,
-        template.deliverySlot.index,
-        OrderType.everydaySupply.index,
-        start,
-        end,
-      ],
-      limit: 1,
-    );
+    for (final slot in _templateSlots(template)) {
+      final result = await db.query(
+        salesTable,
+        columns: ['id'],
+        where: 'shopName = ? AND productType = ? AND saleType = ? AND delivery_slot = ? AND order_type = ? AND date >= ? AND date < ?',
+        whereArgs: [
+          template.shopName,
+          template.productType.index,
+          template.saleType.index,
+          slot.index,
+          OrderType.everydaySupply.index,
+          start,
+          end,
+        ],
+        limit: 1,
+      );
 
-    return result.isNotEmpty;
+      if (result.isEmpty) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   Future<int> autoCreateTodaySupplyOrdersIfNeeded() async {
@@ -330,25 +614,27 @@ class DatabaseService {
       final alreadyExists = await _hasEverydayOrderForTemplateToday(template);
       if (alreadyExists) continue;
 
-      final entry = SalesEntry(
-        date: DateTime.now(),
-        shopName: template.shopName,
-        orderType: OrderType.everydaySupply,
-        deliverySlot: template.deliverySlot,
-        deliveryTime: template.deliveryTime,
-        prepLeadDays: template.prepLeadDays,
-        productType: template.productType,
-        saleType: template.saleType,
-        ratePerUnit: template.ratePerUnit,
-        quantity: template.quantity,
-        costPerUnit: template.costPerUnit,
-        paymentStatus: PaymentStatus.pending,
-        paidAmount: 0,
-        notes: 'Auto-created from recurring template',
-      );
+      for (final slot in _templateSlots(template)) {
+        final entry = SalesEntry(
+          date: DateTime.now(),
+          shopName: template.shopName,
+          orderType: OrderType.everydaySupply,
+          deliverySlot: slot,
+          deliveryTime: template.deliveryTime,
+          prepLeadDays: template.prepLeadDays,
+          productType: template.productType,
+          saleType: template.saleType,
+          ratePerUnit: template.ratePerUnit,
+          quantity: _templateQuantityForSlot(template, slot),
+          costPerUnit: template.costPerUnit,
+          paymentStatus: PaymentStatus.pending,
+          paidAmount: 0,
+          notes: 'Auto-created from recurring template',
+        );
 
-      await insertSalesEntry(entry);
-      created++;
+        await insertSalesEntry(entry);
+        created++;
+      }
     }
 
     await _setSetting(settingLastTemplateGenerationDate, todayKey);
@@ -360,11 +646,21 @@ class DatabaseService {
   /// Insert a new sales entry
   Future<int> insertSalesEntry(SalesEntry entry) async {
     final db = await database;
+    final localEntry = entry.copyWith(
+      lastModified: DateTime.now().millisecondsSinceEpoch,
+      isSynced: false,
+    );
     
     // Also save/update shop name for suggestions
-    await _saveShopName(entry.shopName);
+    await _saveShopName(localEntry.shopName);
     
-    return await db.insert(salesTable, entry.toMap());
+    final id = await db.insert(salesTable, localEntry.toMap());
+    await _enqueueSyncUpsert(
+      entityType: _syncEntitySales,
+      entityLocalId: id,
+      payload: localEntry.copyWith(id: id).toMap(),
+    );
+    return id;
   }
 
   /// Batch insert sales entries
@@ -395,22 +691,44 @@ class DatabaseService {
   /// Update existing sales entry
   Future<int> updateSalesEntry(SalesEntry entry) async {
     final db = await database;
-    return await db.update(
-      salesTable,
-      entry.toMap(),
-      where: 'id = ?',
-      whereArgs: [entry.id],
+    final localEntry = entry.copyWith(
+      lastModified: DateTime.now().millisecondsSinceEpoch,
+      isSynced: false,
     );
+    await _saveShopName(localEntry.shopName);
+    final updated = await db.update(
+      salesTable,
+      localEntry.toMap(),
+      where: 'id = ?',
+      whereArgs: [localEntry.id],
+    );
+    if (updated > 0 && localEntry.id != null) {
+      await _enqueueSyncUpsert(
+        entityType: _syncEntitySales,
+        entityLocalId: localEntry.id!,
+        payload: localEntry.toMap(),
+      );
+    }
+    return updated;
   }
 
   /// Delete a sales entry
   Future<int> deleteSalesEntry(int id) async {
     final db = await database;
-    return await db.delete(
+    final existing = await getSalesEntryById(id);
+    final deleted = await db.delete(
       salesTable,
       where: 'id = ?',
       whereArgs: [id],
     );
+    if (deleted > 0) {
+      await _enqueueSyncDelete(
+        entityType: _syncEntitySales,
+        entityLocalId: id,
+        firestoreId: existing?.firestoreId,
+      );
+    }
+    return deleted;
   }
 
   /// Get all sales entries
@@ -606,6 +924,14 @@ class DatabaseService {
     final db = await database;
     final normalizedNewName = newName.trim();
     final normalizedMobile = mobile?.trim();
+    final affectedSalesIds = (await db.query(
+      salesTable,
+      columns: ['id'],
+      where: 'shopName = ?',
+      whereArgs: [oldName],
+    ))
+        .map((row) => row['id'] as int)
+        .toList();
 
     await db.transaction((txn) async {
       await txn.update(
@@ -678,6 +1004,13 @@ class DatabaseService {
         );
       }
     });
+
+    for (final id in affectedSalesIds) {
+      final entry = await getSalesEntryById(id);
+      if (entry != null) {
+        await updateSalesEntry(entry);
+      }
+    }
   }
 
   Future<void> updateExternalCustomerContact({
@@ -688,6 +1021,14 @@ class DatabaseService {
     final db = await database;
     final normalizedNewName = newName.trim();
     final normalizedMobile = mobile?.trim();
+    final affectedSalesIds = (await db.query(
+      salesTable,
+      columns: ['id'],
+      where: 'order_type = ? AND shopName = ?',
+      whereArgs: [OrderType.externalOrder.index, oldName],
+    ))
+        .map((row) => row['id'] as int)
+        .toList();
 
     await db.update(
       salesTable,
@@ -716,6 +1057,13 @@ class DatabaseService {
         where: 'name = ? AND contact_type = ?',
         whereArgs: [oldName, contactTypeCustomer],
       );
+    }
+
+    for (final id in affectedSalesIds) {
+      final entry = await getSalesEntryById(id);
+      if (entry != null) {
+        await updateSalesEntry(entry);
+      }
     }
   }
 
@@ -823,6 +1171,7 @@ class DatabaseService {
       ..sort((a, b) => a.date.compareTo(b.date));
 
     double remaining = paidAmount;
+    final updatedEntryIds = <int>[];
 
     await db.transaction((txn) async {
       for (final entry in pendingEntries) {
@@ -843,10 +1192,20 @@ class DatabaseService {
           where: 'id = ?',
           whereArgs: [entry.id],
         );
+        if (entry.id != null) {
+          updatedEntryIds.add(entry.id!);
+        }
 
         remaining -= payable;
       }
     });
+
+    for (final id in updatedEntryIds) {
+      final entry = await getSalesEntryById(id);
+      if (entry != null) {
+        await updateSalesEntry(entry);
+      }
+    }
   }
 
   // ==================== EXPENSES CRUD ====================
@@ -854,13 +1213,175 @@ class DatabaseService {
   /// Insert expense
   Future<int> insertExpense(Expense expense) async {
     final db = await database;
-    return await db.insert('expenses', expense.toMap());
+    final expenseMap = expense.toMap()
+      ..['last_modified'] = DateTime.now().millisecondsSinceEpoch
+      ..['is_synced'] = 0;
+    final id = await db.insert('expenses', expenseMap);
+    await _enqueueSyncUpsert(
+      entityType: _syncEntityExpenses,
+      entityLocalId: id,
+      payload: {...expenseMap, 'id': id},
+    );
+    return id;
+  }
+
+  Future<bool> upsertSyncedSale(SalesEntry entry) async {
+    final db = await database;
+    final firestoreId = entry.firestoreId;
+    if (firestoreId == null || firestoreId.isEmpty) return false;
+
+    final existing = await db.query(
+      salesTable,
+      columns: ['id', 'last_modified', 'is_synced'],
+      where: 'firestore_id = ?',
+      whereArgs: [firestoreId],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      final row = existing.first;
+      final localId = row['id'] as int;
+      final localLastModified = row['last_modified'] as int? ?? 0;
+      final localIsSynced = (row['is_synced'] as int? ?? 0) == 1;
+      if (!localIsSynced && localLastModified > entry.lastModified) {
+        return false;
+      }
+
+      await _saveShopName(entry.shopName);
+      final updatedEntry = entry.copyWith(id: localId, isSynced: true);
+      if (SalesEntry.fromMap({...updatedEntry.toMap(), 'id': localId}).toMap().toString() ==
+          (await db.query(salesTable, where: 'id = ?', whereArgs: [localId], limit: 1)).first.toString()) {
+        return false;
+      }
+      await db.update(
+        salesTable,
+        updatedEntry.toMap(),
+        where: 'id = ?',
+        whereArgs: [localId],
+      );
+      return true;
+    }
+
+    await _saveShopName(entry.shopName);
+    await db.insert(salesTable, entry.copyWith(isSynced: true).toMap()..remove('id'));
+    return true;
+  }
+
+  Future<bool> upsertSyncedExpense(Expense expense) async {
+    final db = await database;
+    final firestoreId = expense.firestoreId;
+    if (firestoreId == null || firestoreId.isEmpty) return false;
+
+    final existing = await db.query(
+      'expenses',
+      columns: ['id', 'last_modified', 'is_synced'],
+      where: 'firestore_id = ?',
+      whereArgs: [firestoreId],
+      limit: 1,
+    );
+
+    final expenseMap = expense.toMap()
+      ..['is_synced'] = 1
+      ..remove('id');
+
+    if (existing.isNotEmpty) {
+      final row = existing.first;
+      final localId = row['id'] as int;
+      final localLastModified = row['last_modified'] as int? ?? 0;
+      final localIsSynced = (row['is_synced'] as int? ?? 0) == 1;
+      if (!localIsSynced && localLastModified > expense.lastModified) {
+        return false;
+      }
+
+      final currentRow = await db.query('expenses', where: 'id = ?', whereArgs: [localId], limit: 1);
+      if (currentRow.isNotEmpty) {
+        final comparable = {...expenseMap, 'id': localId};
+        if (currentRow.first.toString() == comparable.toString()) {
+          return false;
+        }
+      }
+      await db.update(
+        'expenses',
+        expenseMap,
+        where: 'id = ?',
+        whereArgs: [localId],
+      );
+      return true;
+    }
+
+    await db.insert('expenses', expenseMap);
+    return true;
+  }
+
+  Future<SalesEntry?> getSalesEntryById(int id) async {
+    final db = await database;
+    final rows = await db.query(salesTable, where: 'id = ?', whereArgs: [id], limit: 1);
+    if (rows.isEmpty) return null;
+    return SalesEntry.fromMap(rows.first);
+  }
+
+  Future<Expense?> getExpenseById(int id) async {
+    final db = await database;
+    final rows = await db.query('expenses', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (rows.isEmpty) return null;
+    return Expense.fromMap(rows.first);
+  }
+
+  Future<bool> pruneMissingSyncedSales(Set<String> remoteFirestoreIds) async {
+    final db = await database;
+    final syncedRows = await db.query(
+      salesTable,
+      columns: ['id', 'firestore_id'],
+      where: 'is_synced = 1 AND firestore_id IS NOT NULL AND firestore_id != ?',
+      whereArgs: [''],
+    );
+
+    final idsToDelete = syncedRows
+        .where((row) => !remoteFirestoreIds.contains(row['firestore_id']))
+        .map((row) => row['id'] as int)
+        .toList();
+    if (idsToDelete.isEmpty) return false;
+
+    for (final id in idsToDelete) {
+      await db.delete(salesTable, where: 'id = ?', whereArgs: [id]);
+    }
+    return true;
+  }
+
+  Future<bool> pruneMissingSyncedExpenses(Set<String> remoteFirestoreIds) async {
+    final db = await database;
+    final syncedRows = await db.query(
+      'expenses',
+      columns: ['id', 'firestore_id'],
+      where: 'is_synced = 1 AND firestore_id IS NOT NULL AND firestore_id != ?',
+      whereArgs: [''],
+    );
+
+    final idsToDelete = syncedRows
+        .where((row) => !remoteFirestoreIds.contains(row['firestore_id']))
+        .map((row) => row['id'] as int)
+        .toList();
+    if (idsToDelete.isEmpty) return false;
+
+    for (final id in idsToDelete) {
+      await db.delete('expenses', where: 'id = ?', whereArgs: [id]);
+    }
+    return true;
   }
 
   /// Delete expense
   Future<int> deleteExpense(int id) async {
     final db = await database;
-    return await db.delete('expenses', where: 'id = ?', whereArgs: [id]);
+    final existing = await getExpenseById(id);
+    final deleted = await db.delete('expenses', where: 'id = ?', whereArgs: [id]);
+    if (deleted > 0) {
+      await _enqueueSyncDelete(
+        entityType: _syncEntityExpenses,
+        entityLocalId: id,
+        firestoreId: existing?.firestoreId,
+      );
+    }
+    return deleted;
   }
 
   /// Get expenses by date range
@@ -968,9 +1489,72 @@ class DatabaseService {
     await db.delete('expenses');
     await db.delete(supplyTemplatesTable);
     await db.delete(appSettingsTable);
+    await db.delete(syncQueueTable);
   }
 
   // ==================== SYNC HELPERS ====================
+
+  Future<void> _enqueueSyncUpsert({
+    required String entityType,
+    required int entityLocalId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final db = await database;
+    await db.insert(
+      syncQueueTable,
+      {
+        'entity_type': entityType,
+        'entity_local_id': entityLocalId,
+        'operation': _syncOperationUpsert,
+        'firestore_id': payload['firestore_id'] as String?,
+        'payload': jsonEncode(payload),
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+        'retry_count': 0,
+        'last_error': null,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> _enqueueSyncDelete({
+    required String entityType,
+    required int entityLocalId,
+    String? firestoreId,
+  }) async {
+    final db = await database;
+    await db.insert(
+      syncQueueTable,
+      {
+        'entity_type': entityType,
+        'entity_local_id': entityLocalId,
+        'operation': _syncOperationDelete,
+        'firestore_id': firestoreId,
+        'payload': null,
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+        'retry_count': 0,
+        'last_error': null,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingSyncQueue() async {
+    final db = await database;
+    return db.query(syncQueueTable, orderBy: 'created_at ASC');
+  }
+
+  Future<void> removeSyncQueueItem(int queueId) async {
+    final db = await database;
+    await db.delete(syncQueueTable, where: 'id = ?', whereArgs: [queueId]);
+  }
+
+  Future<void> markSyncQueueFailed(int queueId, Object error) async {
+    final db = await database;
+    await db.rawUpdate(
+      'UPDATE $syncQueueTable SET retry_count = retry_count + 1, last_error = ? WHERE id = ?',
+      [error.toString(), queueId],
+    );
+  }
 
   Future<List<SalesEntry>> getUnsyncedSales() async {
     final db = await database;

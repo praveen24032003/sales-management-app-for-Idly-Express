@@ -1,0 +1,7 @@
+# Copy this file to android/key.properties and replace every placeholder before
+# attempting a production-signed release build.
+
+storePassword=PASTE_KEYSTORE_PASSWORD
+keyPassword=PASTE_KEY_PASSWORD
+keyAlias=PASTE_KEY_ALIAS
+storeFile=../keystore/upload-keystore.jks

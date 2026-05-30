@@ -12,7 +12,7 @@ import '../services/database_service.dart';
 import '../widgets/payment_bottom_sheet.dart';
 
 /// 7-day dispatch planning screen.
-/// Shows active templates for the next 7 days with swipe gestures:
+/// Shows active templates in a date-centered planner with swipe gestures:
 ///   Right swipe → dispatch + payment prompt
 ///   Left swipe → mark leave
 class DispatchPlannerScreen extends StatefulWidget {
@@ -23,12 +23,15 @@ class DispatchPlannerScreen extends StatefulWidget {
 }
 
 class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
-  static const _days = 7;
+  static const _plannerWindow = 5;
+  static const _centerPageIndex = 2;
   List<SupplyTemplate> _templates = [];
   // key: 'templateId_YYYY-MM-DD_slotIndex'
   Set<String> _dispatchedKeys = {};
   Set<String> _leaveKeys = {};
   bool _loading = true;
+  String _templateFingerprint = '';
+  DateTime _selectedDate = _dateOnly(DateTime.now());
 
   @override
   void initState() {
@@ -36,19 +39,36 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
     _load();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = Provider.of<SalesProvider>(context);
+    final nextFingerprint = provider.supplyTemplates
+        .map((template) => '${template.id}:${template.shopName}:${template.isActive}:${template.morningQuantity}:${template.eveningQuantity}')
+        .join('|');
+
+    if (nextFingerprint != _templateFingerprint) {
+      _templateFingerprint = nextFingerprint;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _load();
+        }
+      });
+    }
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     final templates = await DatabaseService.instance.getAllSupplyTemplates();
-    final now = DateTime.now();
+    final visibleDates = _windowDates();
 
-    // Gather dispatched and leave keys for next 7 days
+    // Gather dispatched and leave keys for the visible planner window.
     final dispatched = <String>{};
     final leaves = <String>{};
 
     for (final t in templates) {
       if (!t.isActive) continue;
-      for (int d = 0; d < _days; d++) {
-        final date = DateTime(now.year, now.month, now.day + d);
+      for (final date in visibleDates) {
         if (!t.isActiveOnDate(date)) continue;
         final dateStr = date.toIso8601String().split('T').first;
 
@@ -72,6 +92,15 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
     }
   }
 
+  static DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
+
+  List<DateTime> _windowDates() {
+    return List.generate(
+      _plannerWindow,
+      (index) => _selectedDate.add(Duration(days: index - _centerPageIndex)),
+    );
+  }
+
   List<DeliverySlot> _getSlots(SupplyTemplate t) {
     final slots = <DeliverySlot>[];
     if (t.morningQuantity > 0) slots.add(DeliverySlot.morning);
@@ -86,18 +115,54 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
     return t.quantity;
   }
 
+  List<SupplyTemplate> _templatesForSlot(List<SupplyTemplate> templates, DeliverySlot slot) {
+    return templates.where((template) => _getQty(template, slot) > 0).toList();
+  }
+
+  int _slotTotalQuantity(List<SupplyTemplate> templates, DeliverySlot slot) {
+    return templates.fold<int>(0, (sum, template) => sum + _getQty(template, slot));
+  }
+
   String _dayLabel(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final target = DateTime(date.year, date.month, date.day);
-    final diff = target.difference(today).inDays;
+    final diff = _dateOnly(date).difference(_dateOnly(DateTime.now())).inDays;
     final dateStr = '${date.day}/${date.month}';
 
+    if (diff == -2) return '2 Days Ago ($dateStr)';
+    if (diff == -1) return 'Yesterday ($dateStr)';
     if (diff == 0) return 'Today ($dateStr)';
     if (diff == 1) return 'Tomorrow ($dateStr)';
+    if (diff == 2) return 'Next Day ($dateStr)';
 
     const weekdays = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return '${weekdays[date.weekday]} ($dateStr)';
+  }
+
+  String _selectedDateCaption() {
+    final date = _selectedDate;
+    const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${_dayLabel(date)} • ${date.day} ${months[date.month]} ${date.year}';
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+
+    setState(() {
+      _selectedDate = _dateOnly(picked);
+    });
+    await _load();
+  }
+
+  Future<void> _jumpToToday() async {
+    setState(() {
+      _selectedDate = _dateOnly(DateTime.now());
+    });
+    await _load();
   }
 
   Future<void> _dispatch(SupplyTemplate t, DateTime date, DeliverySlot slot) async {
@@ -232,8 +297,36 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
       backgroundColor: scaffold,
       appBar: AppBar(
         title: const Text('Dispatch Planner'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(44),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _selectedDateCaption(),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _pickDate,
+                  icon: const Icon(Icons.calendar_month_rounded, size: 18),
+                  label: const Text('Calendar'),
+                ),
+              ],
+            ),
+          ),
+        ),
         backgroundColor: scaffold,
         actions: [
+          if (_selectedDate != _dateOnly(DateTime.now()))
+            IconButton(
+              icon: const Icon(Icons.today_rounded),
+              onPressed: _jumpToToday,
+            ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _load,
@@ -247,25 +340,33 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
   }
 
   Widget _buildDays(bool isDark) {
-    final now = DateTime.now();
-    final days = List.generate(_days, (i) => DateTime(now.year, now.month, now.day + i));
+    final days = _windowDates();
 
     final surface = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
     final textPrimary = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final textSecondary = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+    return PageView.builder(
+      key: ValueKey(_selectedDate.toIso8601String()),
+      controller: PageController(initialPage: _centerPageIndex),
       itemCount: days.length,
+      onPageChanged: (pageIndex) {
+        if (pageIndex == _centerPageIndex) return;
+        final nextDate = days[pageIndex];
+        setState(() {
+          _selectedDate = _dateOnly(nextDate);
+        });
+        _load();
+      },
       itemBuilder: (context, di) {
         final date = days[di];
         final dayTemplates = _templates.where((t) => t.isActiveOnDate(date)).toList();
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
           children: [
             Padding(
-              padding: const EdgeInsets.only(top: 16, bottom: 8),
+              padding: const EdgeInsets.only(top: 16, bottom: 12),
               child: Row(
                 children: [
                   Container(
@@ -277,15 +378,16 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    _dayLabel(date),
-                    style: TextStyle(
-                      color: textPrimary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
+                  Expanded(
+                    child: Text(
+                      _dayLabel(date),
+                      style: TextStyle(
+                        color: textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   Text(
                     '${dayTemplates.length} shops',
                     style: TextStyle(color: textSecondary, fontSize: 12),
@@ -304,13 +406,111 @@ class _DispatchPlannerScreenState extends State<DispatchPlannerScreen> {
                 child: Text('No dispatch for this day', style: TextStyle(color: textSecondary, fontSize: 13)),
               )
             else
-              ...dayTemplates.expand((t) {
-                final slots = _getSlots(t);
-                return slots.map((slot) => _buildTile(t, date, slot, isDark, textPrimary, textSecondary));
-              }),
+              ..._buildDaySections(
+                date: date,
+                dayTemplates: dayTemplates,
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+              ),
           ],
         );
       },
+    );
+  }
+
+  List<Widget> _buildDaySections({
+    required DateTime date,
+    required List<SupplyTemplate> dayTemplates,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    final sections = <Widget>[];
+    final morningTemplates = _templatesForSlot(dayTemplates, DeliverySlot.morning);
+    final eveningTemplates = _templatesForSlot(dayTemplates, DeliverySlot.evening);
+
+    if (morningTemplates.isNotEmpty) {
+      sections.add(
+        _buildSlotSection(
+          date: date,
+          slot: DeliverySlot.morning,
+          templates: morningTemplates,
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          isDark: isDark,
+        ),
+      );
+    }
+
+    if (eveningTemplates.isNotEmpty) {
+      sections.add(
+        _buildSlotSection(
+          date: date,
+          slot: DeliverySlot.evening,
+          templates: eveningTemplates,
+          textPrimary: textPrimary,
+          textSecondary: textSecondary,
+          isDark: isDark,
+        ),
+      );
+    }
+
+    return sections;
+  }
+
+  Widget _buildSlotSection({
+    required DateTime date,
+    required DeliverySlot slot,
+    required List<SupplyTemplate> templates,
+    required Color textPrimary,
+    required Color textSecondary,
+    required bool isDark,
+  }) {
+    final totalQuantity = _slotTotalQuantity(templates, slot);
+    final slotColor = slot == DeliverySlot.morning
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFF6366F1);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: slotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                slot.displayName,
+                style: TextStyle(
+                  color: textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$totalQuantity pcs',
+                style: TextStyle(
+                  color: textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        ...templates.map((template) => _buildTile(template, date, slot, isDark, textPrimary, textSecondary)),
+        const SizedBox(height: 8),
+      ],
     );
   }
 

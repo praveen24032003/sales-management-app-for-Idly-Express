@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../providers/expense_provider.dart';
+import '../providers/sales_provider.dart';
+import '../services/sync_service.dart';
 import 'home_shell.dart';
 
 /// Professional animated splash screen
@@ -63,14 +67,29 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _startSequence() async {
+    final salesProvider = context.read<SalesProvider>();
+    final expenseProvider = context.read<ExpenseProvider>();
+    final navigator = Navigator.of(context);
+
+    SyncService.instance.registerReloadCallbacks(
+      onSalesChanged: salesProvider.loadData,
+      onExpensesChanged: expenseProvider.loadExpenses,
+    );
+
     await Future.delayed(const Duration(milliseconds: 250));
     _scaleCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 420));
     _fadeCtrl.forward();
     _progressCtrl.forward();
+    final preload = () async {
+      await SyncService.instance.initialize();
+      await salesProvider.loadData();
+      await expenseProvider.loadExpenses();
+    }();
     await Future.delayed(const Duration(milliseconds: 2800));
+    await preload;
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
+    navigator.pushReplacement(
       PageRouteBuilder(
         pageBuilder: (_, routeAnim, secondaryAnim) => const HomeShell(),
         transitionsBuilder: (_, anim, _, child) =>

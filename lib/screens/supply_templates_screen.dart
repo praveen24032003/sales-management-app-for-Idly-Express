@@ -121,7 +121,6 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
 
   late ProductType _productType;
   late SaleType _saleType;
-  late DeliverySlot _deliverySlot;
   TimeOfDay? _deliveryTime;
   late int _prepLeadDays;
   late Set<int> _activeWeekdays;
@@ -140,7 +139,6 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
     _costController = TextEditingController(text: t?.costPerUnit.toString() ?? '');
     _productType = t?.productType ?? ProductType.values.first;
     _saleType = t?.saleType ?? SaleType.values.first;
-    _deliverySlot = t?.deliverySlot ?? DeliverySlot.morning;
     _prepLeadDays = t?.prepLeadDays ?? 1;
     _activeWeekdays = {...(t?.activeWeekdays ?? {1, 2, 3, 4, 5, 6})};
     _startDate = t?.startDate;
@@ -195,6 +193,7 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
     }
 
     final legacyQty = morningQty + eveningQty > 0 ? morningQty + eveningQty : 1;
+    final effectiveDeliverySlot = morningQty > 0 ? DeliverySlot.morning : DeliverySlot.evening;
 
     final template = SupplyTemplate(
       id: widget.template?.id,
@@ -207,7 +206,7 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
       eveningQuantity: eveningQty,
       ratePerUnit: double.parse(_rateController.text),
       costPerUnit: double.parse(_costController.text),
-      deliverySlot: _deliverySlot,
+      deliverySlot: effectiveDeliverySlot,
       deliveryTime: _timeAsString(),
       prepLeadDays: _prepLeadDays,
       activeWeekdays: _activeWeekdays,
@@ -330,13 +329,24 @@ class _TemplateFormDialogState extends State<_TemplateFormDialog> {
                   },
                 ),
                 const SizedBox(height: 10),
-                DropdownButtonFormField<DeliverySlot>(
-                  initialValue: _deliverySlot,
-                  decoration: const InputDecoration(labelText: 'Dispatch Slot'),
-                  items: DeliverySlot.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.displayName)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _deliverySlot = v!),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Theme.of(context).dividerColor),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Dispatch timing'),
+                      SizedBox(height: 4),
+                      Text(
+                        'Morning and evening quantities decide the dispatch automatically.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 10),
                 ListTile(

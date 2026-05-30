@@ -81,6 +81,7 @@ const String contactsTable = 'contacts';
 const String supplyTemplatesTable = 'supply_templates';
 const String appSettingsTable = 'app_settings';
 const String dispatchLeavesTable = 'dispatch_leaves';
+const String syncQueueTable = 'sync_queue';
 const String settingLastTemplateGenerationDate = 'last_template_generation_date';
 
 const String contactTypeShop = 'shop';
